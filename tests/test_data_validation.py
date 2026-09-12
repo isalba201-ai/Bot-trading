@@ -2,7 +2,7 @@
 
 These candles are NOT market data of any kind — they exist only to exercise
 one validation rule at a time and must never be confused with, or used as
-a substitute for, real OTC history.
+a substitute for, real Forex history.
 """
 
 import datetime as dt
@@ -23,8 +23,8 @@ BASE = dt.datetime(2026, 1, 1, tzinfo=dt.timezone.utc)
 
 def _candle(seconds_offset: int, o=1.0, h=1.01, l=0.99, c=1.0) -> RawCandle:
     return RawCandle(
-        asset="TEST_OTC",
-        timeframe="30s",
+        asset="TEST_FX",
+        timeframe="1m",
         timestamp=BASE + dt.timedelta(seconds=seconds_offset),
         open=o,
         high=h,
@@ -34,35 +34,35 @@ def _candle(seconds_offset: int, o=1.0, h=1.01, l=0.99, c=1.0) -> RawCandle:
 
 
 def test_timeframe_to_seconds():
-    assert timeframe_to_seconds("30s") == 30
     assert timeframe_to_seconds("1m") == 60
+    assert timeframe_to_seconds("5m") == 300
 
 
 def test_find_duplicate_timestamps():
-    candles = [_candle(0), _candle(0), _candle(30)]
+    candles = [_candle(0), _candle(0), _candle(60)]
     findings = find_duplicate_timestamps(candles)
     assert len(findings) == 1
     assert findings[0].issue_type == "duplicate_timestamp"
 
 
 def test_find_out_of_order():
-    candles = [_candle(30), _candle(0)]
+    candles = [_candle(60), _candle(0)]
     findings = find_out_of_order(candles)
     assert len(findings) == 1
     assert findings[0].issue_type == "out_of_order"
 
 
 def test_find_gaps_detects_missing_bar():
-    # 30s timeframe but candles are 90s apart -> 2 missing bars
-    candles = [_candle(0), _candle(90)]
-    findings = find_gaps(candles, "30s")
+    # 1m timeframe but candles are 180s apart -> 2 missing bars
+    candles = [_candle(0), _candle(180)]
+    findings = find_gaps(candles, "1m")
     assert len(findings) == 1
     assert "2 missing bar" in findings[0].detail
 
 
 def test_find_gaps_no_gap_when_contiguous():
-    candles = [_candle(0), _candle(30), _candle(60)]
-    findings = find_gaps(candles, "30s")
+    candles = [_candle(0), _candle(60), _candle(120)]
+    findings = find_gaps(candles, "1m")
     assert findings == []
 
 
@@ -85,14 +85,14 @@ def test_find_impossible_values_accepts_valid_candle():
 
 
 def test_find_suspicious_moves():
-    candles = [_candle(0, c=1.0), _candle(30, c=2.0)]  # +100% close-to-close
+    candles = [_candle(0, c=1.0), _candle(60, c=2.0)]  # +100% close-to-close
     findings = find_suspicious_moves(candles, max_pct=5.0)
     assert len(findings) == 1
     assert findings[0].issue_type == "suspicious_move"
 
 
 def test_find_suspicious_moves_within_threshold_not_flagged():
-    candles = [_candle(0, c=1.0), _candle(30, c=1.01)]  # +1%
+    candles = [_candle(0, c=1.0), _candle(60, c=1.01)]  # +1%
     assert find_suspicious_moves(candles, max_pct=5.0) == []
 
 

@@ -1,13 +1,25 @@
 # Risk management
 
+## The system never executes anything
+
+This is not a configurable option, and there is no plan to make it one. The
+system's only output is information: a signal (or "NO HAY SEÑAL") together
+with its supporting data, shown to you. It never places an order, never
+connects to a broker account, never touches funds, and never stores broker
+credentials anywhere in this repository. Every trade decision — whether to
+enter, at what size, in which broker — is made by you, manually, outside
+this system. The rules below are things the system **tracks and warns
+about** based on the signal journal (SIGNAL_ENGINE.md), not things it
+enforces by blocking its own orders — it has no orders to block.
+
 Risk management is intentionally independent of any strategy's logic —
 these rules apply no matter which hypothesis produced a signal, and are
 configured in `config/config.yaml` under `risk:` / `signals:`.
 
-**Status: these are the rules the system is designed to enforce. The
-components that consume them (paper trading engine, live safeguards) are
-built in Phases 10+ and do not exist yet — this document fixes the rules in
-advance.**
+**Status: these are the rules the system is designed to track and surface.
+The components that consume them (journal reconciliation, dashboard
+warnings) are built in Phases 10+ and do not exist yet — this document
+fixes the rules in advance.**
 
 ## Core rules
 
@@ -24,9 +36,11 @@ advance.**
 - `cooldown_after_loss_minutes` (default `30`) — mandatory pause after a
   loss before another signal can be acted on.
 
-Any of these limits being reached means **STOP TRADING** — not "reduce size
-and continue," not "wait for a better setup." The stop condition itself is
-not negotiable by a stronger-looking signal.
+Any of these limits being reached means the system will surface a **STOP
+TRADING** warning — not "reduce size and continue," not "wait for a better
+setup." Since the system does not place trades itself, honoring the stop is
+up to you; the warning exists so the decision is based on a clear signal
+rather than being talked out of it in the moment.
 
 ## Signal quality tiers
 

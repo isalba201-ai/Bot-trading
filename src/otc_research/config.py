@@ -40,11 +40,20 @@ class DataValidationConfig:
 
 
 @dataclasses.dataclass(frozen=True)
+class MarketConfig:
+    data_provider: str  # "oanda" or "csv"
+    oanda_environment: str  # "practice" or "live" — the API token itself is never in config
+    pairs: list[str]
+    timeframes: list[str]
+
+
+@dataclasses.dataclass(frozen=True)
 class AppConfig:
     database_url: str
     risk: RiskConfig
     signals: SignalsConfig
     data_validation: DataValidationConfig
+    market: MarketConfig
 
 
 def load_config(path: str | Path | None = None) -> AppConfig:
@@ -58,9 +67,16 @@ def load_config(path: str | Path | None = None) -> AppConfig:
             "(see RISK_MANAGEMENT.md / project phase 22)."
         )
 
+    market_raw = raw["market"]
     return AppConfig(
         database_url=raw["database"]["url"],
         risk=RiskConfig(**raw["risk"]),
         signals=SignalsConfig(**raw["signals"]),
         data_validation=DataValidationConfig(**raw["data_validation"]),
+        market=MarketConfig(
+            data_provider=market_raw["data_provider"],
+            oanda_environment=market_raw["oanda"]["environment"],
+            pairs=list(market_raw["pairs"]),
+            timeframes=list(market_raw["timeframes"]),
+        ),
     )

@@ -62,8 +62,13 @@ def ingest(
     *,
     max_suspicious_move_pct: float = 5.0,
     is_synthetic_test_data: bool = False,
+    start: dt.datetime | None = None,
+    end: dt.datetime | None = None,
+    count: int | None = None,
 ) -> IngestionReport:
-    raw_candles: list[RawCandle] = list(source.fetch(asset, timeframe))
+    raw_candles: list[RawCandle] = list(
+        source.fetch(asset, timeframe, start=start, end=end, count=count)
+    )
 
     all_findings = []
     all_findings += find_duplicate_timestamps(raw_candles)

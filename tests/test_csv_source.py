@@ -12,11 +12,11 @@ def test_parses_valid_csv(tmp_path):
     )
 
     source = CsvDataSource(csv_path)
-    candles = list(source.fetch("EURUSD_OTC", "30s"))
+    candles = list(source.fetch("EUR_USD", "1m"))
 
     assert len(candles) == 2
-    assert candles[0].asset == "EURUSD_OTC"
-    assert candles[0].timeframe == "30s"
+    assert candles[0].asset == "EUR_USD"
+    assert candles[0].timeframe == "1m"
     assert candles[0].close == pytest.approx(1.1002)
     # strictly ascending order
     assert candles[0].timestamp < candles[1].timestamp
@@ -29,4 +29,4 @@ def test_missing_column_raises(tmp_path):
 
     source = CsvDataSource(csv_path)
     with pytest.raises(ValueError, match="missing required column"):
-        list(source.fetch("EURUSD_OTC", "30s"))
+        list(source.fetch("EUR_USD", "1m"))

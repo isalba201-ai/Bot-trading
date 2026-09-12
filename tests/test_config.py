@@ -9,6 +9,11 @@ def test_default_config_loads():
     assert config.risk.max_consecutive_losses == 3
     assert config.signals.allow_live_execution is False
     assert config.signals.default_min_quality_tier == "A+"
+    assert config.market.data_provider == "oanda"
+    assert config.market.oanda_environment == "practice"
+    assert "EUR_USD" in config.market.pairs
+    assert "30s" not in config.market.timeframes
+    assert "1m" in config.market.timeframes
 
 
 def test_live_execution_flag_is_refused(tmp_path):

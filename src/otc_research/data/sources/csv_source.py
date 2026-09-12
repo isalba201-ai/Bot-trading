@@ -32,7 +32,17 @@ class CsvDataSource(DataSource):
         self.path = Path(path)
         self.name = f"csv:{self.path.name}"
 
-    def fetch(self, asset: str, timeframe: str) -> Iterable[RawCandle]:
+    def fetch(
+        self,
+        asset: str,
+        timeframe: str,
+        *,
+        start: dt.datetime | None = None,
+        end: dt.datetime | None = None,
+        count: int | None = None,
+    ) -> Iterable[RawCandle]:
+        # A fixed CSV file has no separate range/count query mode: it always
+        # returns everything it contains, sorted.
         return list(self._iter_rows(asset, timeframe))
 
     def _iter_rows(self, asset: str, timeframe: str) -> Iterator[RawCandle]:

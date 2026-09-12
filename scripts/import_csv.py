@@ -2,8 +2,8 @@
 """Import a CSV file of real candle data for one asset/timeframe.
 
 Example:
-    python scripts/import_csv.py --asset EURUSD_OTC --timeframe 30s \\
-        --csv data/raw/eurusd_otc_30s.csv
+    python scripts/import_csv.py --asset EUR_USD --timeframe 1m \\
+        --csv data/raw/eur_usd_1m.csv
 
 The CSV must have columns: timestamp, open, high, low, close.
 This script never invents data — see otc_research.data.ingestion for the
@@ -26,8 +26,8 @@ logger = get_logger(__name__)
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--csv", required=True, help="Path to the CSV file")
-    parser.add_argument("--asset", required=True, help='e.g. "EURUSD_OTC"')
-    parser.add_argument("--timeframe", required=True, help='e.g. "30s", "1m", "5m"')
+    parser.add_argument("--asset", required=True, help='e.g. "EUR_USD"')
+    parser.add_argument("--timeframe", required=True, help='e.g. "1m", "5m", "15m"')
     parser.add_argument("--config", default=None, help="Path to config.yaml")
     args = parser.parse_args()
 

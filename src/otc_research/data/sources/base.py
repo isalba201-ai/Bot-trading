@@ -1,18 +1,16 @@
 """Abstract interface every data source must implement.
 
-Why this exists: Pocket Option does not publish an official API for OTC
-candle data. This project deliberately does NOT scrape the platform, bypass
-login/2FA, or reverse-engineer private endpoints — see DATA.md for the
-reasoning. Instead, the system is built around this interface so that:
-
-* real historical data you provide (e.g. exported CSV files) can be
-  ingested today, and
-* a legitimate, authorized data feed can be plugged in later without
-  touching anything downstream (validation, storage, features, ...).
+The system analyzes real Forex market data (not Pocket Option's OTC
+instruments — see DATA.md for why). Sources implemented against this
+interface: ``CsvDataSource`` (any user-provided historical export) and
+``OandaDataSource`` (real market data via OANDA's v20 API, using a free
+practice/demo account and personal access token — never scraping,
+never bypassing login/2FA on anything).
 
 The one hard rule for every implementation: if a candle cannot be
 obtained, it is omitted. Never interpolate, repeat, or otherwise invent a
-candle to fill a gap.
+candle to fill a gap. And never return a candle that is still forming —
+only fully closed bars.
 """
 
 from __future__ import annotations
@@ -47,11 +45,25 @@ class DataSource(ABC):
     name: str
 
     @abstractmethod
-    def fetch(self, asset: str, timeframe: str) -> Iterable[RawCandle]:
+    def fetch(
+        self,
+        asset: str,
+        timeframe: str,
+        *,
+        start: dt.datetime | None = None,
+        end: dt.datetime | None = None,
+        count: int | None = None,
+    ) -> Iterable[RawCandle]:
         """Yield candles in strictly ascending timestamp order.
 
-        Implementations must not fabricate missing candles. Ordering and
-        duplicate/gap detection is re-verified independently by the
+        ``start``/``end`` request a specific closed time range; ``count``
+        requests the most recent N candles when a range isn't given. A
+        source that doesn't support range/count filtering (e.g. a fixed
+        CSV file) may ignore these and always return everything it has.
+
+        Implementations must not fabricate missing candles, and must never
+        yield a candle that is still forming (not yet closed). Ordering
+        and duplicate/gap detection is re-verified independently by the
         validation layer, but sources should still do their best to yield
         clean, sorted data.
         """

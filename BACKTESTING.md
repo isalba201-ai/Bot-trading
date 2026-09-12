@@ -40,7 +40,11 @@ A strategy that only survives the optimistic scenario is classified
 
 ## Payout and expectancy
 
-Payout is never hardcoded. For any payout `p` (e.g. `0.92`):
+A plain directional Forex signal has no fixed payout — expectancy for it is
+expressed in price terms (expected pips/return per trade), not win-rate vs.
+payout. The payout math below only applies if you choose to act on a signal
+by manually placing it as a fixed-payout instrument elsewhere; when it does
+apply, payout is never hardcoded. For any payout `p` (e.g. `0.92`):
 
 ```
 break_even_win_rate = 1 / (1 + p)

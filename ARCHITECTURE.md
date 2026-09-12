@@ -15,9 +15,9 @@ layer in isolation.
 ├───────────────────────────────────────────────────────────────┤
 │ 11. Dashboard (read-only view over the DB)                    │
 ├───────────────────────────────────────────────────────────────┤
-│ 10. Paper trading (simulated fills, no real money)             │
+│ 10. Signal journal reconciliation (predicted vs. actual result)│
 ├───────────────────────────────────────────────────────────────┤
-│  9. Signal engine (A+/A/B/NO_TRADE tiers, quality filter)      │
+│  9. Signal engine ("BUSCAR SEÑAL" UI, A+/A/B/NO_TRADE tiers)   │
 ├───────────────────────────────────────────────────────────────┤
 │  6-8. Robustness, walk-forward, Monte Carlo                   │
 ├───────────────────────────────────────────────────────────────┤
@@ -43,7 +43,8 @@ src/otc_research/
   data/
     sources/
       base.py            # DataSource ABC + RawCandle
-      csv_source.py       # the only implemented source: user-provided CSV
+      csv_source.py       # user-provided CSV (any historical export)
+      oanda_source.py     # real Forex market data via OANDA's v20 API
     validation.py         # pure functions, one per data-quality rule
     ingestion.py          # orchestrates source -> validation -> storage
   utils/
@@ -51,8 +52,10 @@ src/otc_research/
 scripts/
   init_db.py             # create schema
   import_csv.py          # CLI to ingest a CSV file
+  fetch_oanda.py          # CLI to fetch/backfill real candles from OANDA
+  seed_hypotheses.py      # registers the hypotheses in STRATEGIES.md
 config/
-  config.yaml            # risk limits, signal thresholds, DB url
+  config.yaml            # risk limits, signal thresholds, pairs, DB url
 tests/                    # one test module per src module
 ```
 
@@ -63,28 +66,35 @@ restructuring what already exists.
 
 ## Data flow (current phases)
 
-1. You obtain a CSV file of real candle data yourself (see DATA.md for why
-   this is the only supported path today).
-2. `CsvDataSource` parses it into `RawCandle` objects, sorted ascending,
-   always timezone-aware UTC.
-3. `ingestion.ingest()` runs every validator in `validation.py` against the
+1. Real candles come from either `OandaDataSource` (OANDA v20 API, real
+   Forex market, requires a free practice-account token in
+   `OANDA_API_TOKEN`) or `CsvDataSource` (any historical export you
+   provide). Both yield the same `RawCandle` objects, sorted ascending,
+   always timezone-aware UTC, and `OandaDataSource` never returns a candle
+   OANDA itself hasn't marked "complete" (closed).
+2. `ingestion.ingest()` runs every validator in `validation.py` against the
    full batch, logs every finding as a `DataQualityIssue` row, and inserts
    only candles that are not duplicates, not out-of-order, and not
    internally impossible. Gaps and suspicious moves are logged but do not
    block insertion of the surrounding valid candles.
-4. Candles are stored once, keyed by `(asset, timeframe, timestamp)`, with a
+3. Candles are stored once, keyed by `(asset, timeframe, timestamp)`, with a
    `source` field recording provenance and an `is_synthetic_test_data` flag
    that must be `False` for anything used in real research.
 
 Everything past this point (features, backtesting, signals) does not exist
 yet and must be built strictly on top of validated `Candle` rows — never by
-reading files directly, so that validation can't be silently bypassed.
+reading files or calling a data source directly, so that validation can't
+be silently bypassed. The eventual "BUSCAR SEÑAL" UI (Phase 9) is a thin
+layer that triggers this same fetch → validate → store → feature →
+strategy-evaluation path on demand, then either shows a signal or "NO HAY
+SEÑAL" — see SIGNAL_ENGINE.md. It never places an order.
 
-## Why no live Pocket Option connector
+## Why not Pocket Option OTC
 
-Pocket Option does not publish an official API for OTC candle data. Building
-a scraper or automating login against the platform would mean evading its
-own controls, which this project will not do (also see project brief,
-section 22, and the top-level README). The `DataSource` abstraction exists
-so that if you obtain data through a legitimate, authorized channel later,
-it plugs in without changing anything downstream.
+Pocket Option does not publish an official API for OTC candle data, and
+automating anything against it — even just reading your own logged-in
+session — risks account detection and closure. This project analyzes real
+Forex market data instead (see DATA.md), which does carry one honest
+caveat: an edge found on real Forex data is not automatically valid on
+Pocket Option's OTC synthetic instrument, since the two are different
+data-generating processes.

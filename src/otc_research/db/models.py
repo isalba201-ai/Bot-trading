@@ -52,7 +52,7 @@ class Candle(Base):
 
     id = Column(Integer, primary_key=True)
     asset = Column(String(32), nullable=False)
-    timeframe = Column(String(8), nullable=False)  # "30s", "1m", "5m", ...
+    timeframe = Column(String(8), nullable=False)  # "1m", "5m", "15m", ...
     timestamp = Column(DateTime(timezone=True), nullable=False)
 
     open = Column(Float, nullable=False)
@@ -178,13 +178,24 @@ class Signal(Base):
     generated_at = Column(DateTime(timezone=True), nullable=False)
     entry_price = Column(Float, nullable=True)
     expiry_price = Column(Float, nullable=True)
-    payout = Column(Float, nullable=False)  # e.g. 0.92 for 92%
+    # Only meaningful if the user manually places this as a fixed-payout
+    # instrument elsewhere; a plain real-market directional signal has none.
+    payout = Column(Float, nullable=True)
 
     strategy_code = Column(String(32), ForeignKey("hypotheses.code"), nullable=False)
     model_version = Column(String(32), nullable=False)
 
     score = Column(Float, nullable=False)
     quality_tier = Column(String(8), nullable=False)  # "A+", "A", "B", "NO_TRADE"
+
+    # Statistical grounding for whatever confidence number is shown to the
+    # user. A confidence figure with no sample_size/win_rate/CI behind it
+    # must never be displayed — see SIGNAL_ENGINE.md.
+    historical_sample_size = Column(Integer, nullable=True)
+    historical_win_rate = Column(Float, nullable=True)
+    win_rate_ci_low = Column(Float, nullable=True)
+    win_rate_ci_high = Column(Float, nullable=True)
+    expectancy = Column(Float, nullable=True)
 
     market_regime = Column(String(32), nullable=True)
     session = Column(String(16), nullable=True)
@@ -193,6 +204,7 @@ class Signal(Base):
 
     features_snapshot = Column(Text, nullable=True)  # JSON: {feature_name: value}
     conditions_met = Column(Text, nullable=True)  # JSON list of condition names
+    conditions_summary = Column(Text, nullable=True)  # short human-readable explanation
 
     mode = Column(String(16), nullable=False, default="paper")  # paper / live
     result = Column(String(8), nullable=True)  # WIN / LOSS / VOID

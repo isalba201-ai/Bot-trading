@@ -13,8 +13,8 @@ def _ts(i: int = 0) -> dt.datetime:
 def test_insert_candle(session):
     session.add(
         Candle(
-            asset="EURUSD_OTC",
-            timeframe="30s",
+            asset="EUR_USD",
+            timeframe="1m",
             timestamp=_ts(0),
             open=1.1000,
             high=1.1005,
@@ -26,14 +26,14 @@ def test_insert_candle(session):
     session.commit()
 
     stored = session.query(Candle).one()
-    assert stored.asset == "EURUSD_OTC"
+    assert stored.asset == "EUR_USD"
     assert stored.is_synthetic_test_data is False
 
 
 def test_duplicate_asset_timeframe_timestamp_rejected(session):
     kwargs = dict(
-        asset="EURUSD_OTC",
-        timeframe="30s",
+        asset="EUR_USD",
+        timeframe="1m",
         timestamp=_ts(0),
         open=1.0,
         high=1.1,

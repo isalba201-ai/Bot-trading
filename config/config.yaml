@@ -1,6 +1,26 @@
-# Default configuration for the OTC research system.
+# Default configuration for the Forex research/signal-analysis system.
 # Every value here is a starting point, not a recommendation — tune deliberately
 # and record why when you change something that affects backtest results.
+
+market:
+  # "oanda" for real Forex market data via OANDA's v20 API, "csv" to only
+  # ever use user-provided files. The OANDA API token is NEVER put here —
+  # it is read from the OANDA_API_TOKEN environment variable at runtime.
+  data_provider: "oanda"
+  oanda:
+    environment: "practice"   # "practice" (free demo account) or "live"
+  pairs:
+    - EUR_USD
+    - GBP_USD
+    - USD_JPY
+    - USD_CHF
+    - AUD_USD
+    - USD_CAD
+    - NZD_USD
+  timeframes:
+    - "1m"
+    - "5m"
+    - "15m"
 
 database:
   # SQLite by default. Swap for a postgresql:// URL later if needed; the schema

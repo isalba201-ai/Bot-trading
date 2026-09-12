@@ -30,6 +30,30 @@ strategies). Nothing below should be read as a claim that it works.
 - **no_edge / weak_edge / promising / robust_edge** — final classification
   after out-of-sample + walk-forward + Monte Carlo + robustness testing.
 
+## What every hypothesis must define, not just its entry trigger
+
+Per the project brief, a hypothesis is not just "condition X → CALL/PUT". At
+minimum, each one (when it reaches Phase 4/5 backtesting) must specify:
+
+- **Entry conditions** — the exact, testable trigger.
+- **Invalidation conditions** — under what circumstances the setup is
+  considered void even if the trigger technically fired (e.g. against a
+  strong opposing trend, during anomalous volatility, near a major level).
+- **Market regime applicability** — whether it's expected to work in trend,
+  range, high-volatility, or low-volatility conditions, verified empirically
+  rather than assumed (see BACKTESTING.md).
+- **Time-of-day/session performance** — measured, not assumed; a hypothesis
+  can be restricted to the hours/sessions where it actually shows an edge.
+- **Quality filter** — what separates an A+ setup from a merely-acceptable
+  one for this specific hypothesis.
+
+Supporting factors considered across hypotheses (price action, trend,
+momentum, volatility, market structure, support/resistance, candlestick
+patterns) are only kept in a hypothesis's final rule set if they measurably
+improve out-of-sample results — see BACKTESTING.md's feature/ablation
+approach. None are included by default just because they're common
+technical-analysis concepts.
+
 ## Rules for adding a new hypothesis
 
 1. Register it here and in the `hypotheses` table with a `registered_at`
