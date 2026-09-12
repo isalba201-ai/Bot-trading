@@ -39,12 +39,22 @@ class DataValidationConfig:
     max_suspicious_move_pct: float
 
 
+KNOWN_DATA_PROVIDERS = ("twelvedata", "oanda", "csv")
+
+
 @dataclasses.dataclass(frozen=True)
 class MarketConfig:
-    data_provider: str  # "oanda" or "csv"
+    data_provider: str  # "twelvedata", "oanda", or "csv"
     oanda_environment: str  # "practice" or "live" — the API token itself is never in config
     pairs: list[str]
     timeframes: list[str]
+
+    def __post_init__(self) -> None:
+        if self.data_provider not in KNOWN_DATA_PROVIDERS:
+            raise ValueError(
+                f"Unknown market.data_provider {self.data_provider!r}; "
+                f"expected one of {KNOWN_DATA_PROVIDERS}"
+            )
 
 
 @dataclasses.dataclass(frozen=True)

@@ -44,7 +44,9 @@ src/otc_research/
     sources/
       base.py            # DataSource ABC + RawCandle
       csv_source.py       # user-provided CSV (any historical export)
-      oanda_source.py     # real Forex market data via OANDA's v20 API
+      twelvedata_source.py  # real Forex data via Twelve Data (default; API-key signup only)
+      oanda_source.py     # real Forex market data via OANDA's v20 API (needs an approved broker account)
+      factory.py          # builds the configured live source from MarketConfig
     validation.py         # pure functions, one per data-quality rule
     ingestion.py          # orchestrates source -> validation -> storage
   utils/
@@ -52,7 +54,7 @@ src/otc_research/
 scripts/
   init_db.py             # create schema
   import_csv.py          # CLI to ingest a CSV file
-  fetch_oanda.py          # CLI to fetch/backfill real candles from OANDA
+  fetch_market_data.py    # CLI to fetch/backfill real candles from the configured provider
   seed_hypotheses.py      # registers the hypotheses in STRATEGIES.md
 config/
   config.yaml            # risk limits, signal thresholds, pairs, DB url
@@ -66,12 +68,15 @@ restructuring what already exists.
 
 ## Data flow (current phases)
 
-1. Real candles come from either `OandaDataSource` (OANDA v20 API, real
-   Forex market, requires a free practice-account token in
-   `OANDA_API_TOKEN`) or `CsvDataSource` (any historical export you
-   provide). Both yield the same `RawCandle` objects, sorted ascending,
-   always timezone-aware UTC, and `OandaDataSource` never returns a candle
-   OANDA itself hasn't marked "complete" (closed).
+1. Real candles come from `TwelveDataSource` (default — Twelve Data API,
+   key-only signup, token in `TWELVEDATA_API_KEY`), `OandaDataSource`
+   (OANDA v20 API, requires an approved broker demo/live account, token in
+   `OANDA_API_TOKEN`), or `CsvDataSource` (any historical export you
+   provide) — `data.sources.factory.build_live_data_source()` picks
+   between the two live sources based on `config.yaml`'s
+   `market.data_provider`. All yield the same `RawCandle` objects, sorted
+   ascending, always timezone-aware UTC, and neither live source ever
+   returns a candle that hasn't actually closed yet.
 2. `ingestion.ingest()` runs every validator in `validation.py` against the
    full batch, logs every finding as a `DataQualityIssue` row, and inserts
    only candles that are not duplicates, not out-of-order, and not

@@ -1,15 +1,17 @@
 #!/usr/bin/env python
-"""Fetch real Forex candles from OANDA and store them.
+"""Fetch real Forex candles from the configured live data provider and store them.
 
-Requires OANDA_API_TOKEN to be set in the environment (never pass it as a
-CLI argument — that would leak it into your shell history).
+Uses whichever provider is set in config.yaml (market.data_provider:
+"twelvedata" or "oanda"). Requires the matching API credential to be set
+in the environment — TWELVEDATA_API_KEY or OANDA_API_TOKEN — never pass it
+as a CLI argument, that would leak it into your shell history.
 
 Examples:
     # most recent 500 closed 1-minute candles
-    python scripts/fetch_oanda.py --pair EUR_USD --timeframe 1m --count 500
+    python scripts/fetch_market_data.py --pair EUR_USD --timeframe 1m --count 500
 
     # a specific historical window (for backtesting)
-    python scripts/fetch_oanda.py --pair EUR_USD --timeframe 5m \\
+    python scripts/fetch_market_data.py --pair EUR_USD --timeframe 5m \\
         --start 2026-01-01T00:00:00Z --end 2026-01-08T00:00:00Z
 """
 
@@ -20,7 +22,7 @@ import datetime as dt
 
 from otc_research.config import load_config
 from otc_research.data.ingestion import ingest
-from otc_research.data.sources.oanda_source import OandaDataSource
+from otc_research.data.sources.factory import build_live_data_source
 from otc_research.db.session import get_engine, get_session_factory, init_db
 from otc_research.utils.logging import get_logger
 
@@ -33,7 +35,7 @@ def _parse_iso(value: str) -> dt.datetime:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--pair", required=True, help='OANDA instrument, e.g. "EUR_USD"')
+    parser.add_argument("--pair", required=True, help='e.g. "EUR_USD"')
     parser.add_argument("--timeframe", required=True, help='"1m", "5m", "15m", "30m", "1h", ...')
     parser.add_argument("--count", type=int, default=None, help="Most recent N closed candles")
     parser.add_argument("--start", default=None, help="ISO8601 start (requires --end)")
@@ -49,7 +51,7 @@ def main() -> None:
     init_db(engine)
     session = get_session_factory(engine)()
 
-    source = OandaDataSource(environment=config.market.oanda_environment)
+    source = build_live_data_source(config.market)
 
     start = _parse_iso(args.start) if args.start else None
     end = _parse_iso(args.end) if args.end else None
@@ -68,7 +70,8 @@ def main() -> None:
     )
 
     logger.info(
-        "OANDA fetch %s/%s: seen=%d inserted=%d skipped=%d issues_logged=%d",
+        "%s fetch %s/%s: seen=%d inserted=%d skipped=%d issues_logged=%d",
+        source.name,
         args.pair,
         args.timeframe,
         report.candles_seen,

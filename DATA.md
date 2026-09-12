@@ -7,16 +7,30 @@ instruments (which have no official public API, and where any automation —
 even just reading your own session — risks account closure; see README).
 Two supported sources today:
 
-- **OANDA v20 API (`OandaDataSource`)** — real Forex market data, live and
-  historical, for a wide range of granularities (1 minute and above in this
-  project — see "Why not 30-second candles" below). Requires a free
-  practice (demo) account and a personal access token, read from the
-  `OANDA_API_TOKEN` environment variable (never hardcoded, never
-  committed). Only candles OANDA itself marks `complete` are ever used —
-  the still-forming current candle is always discarded.
+- **Twelve Data (`TwelveDataSource`, default)** — real Forex market data,
+  live and historical. Signup is email + API key only — no broker account,
+  no KYC, no country-based approval process. Free tier is rate-limited
+  (roughly 8 requests/minute, 800/day — check twelvedata.com/pricing for
+  current numbers). Token read from `TWELVEDATA_API_KEY`.
+- **OANDA v20 API (`OandaDataSource`)** — real Forex market data via a
+  broker's own API. Requires an OANDA practice (demo) account, which OANDA
+  approves or rejects per its own country/compliance rules — this project
+  cannot influence or work around that decision. Token read from
+  `OANDA_API_TOKEN`.
 - **User-provided CSV files (`CsvDataSource`)** — any historical OHLC export
   you already have (columns: timestamp, open, high, low, close), ingested
   via `scripts/import_csv.py`.
+
+Both live sources guarantee the same thing: only fully closed candles are
+ever returned. `OandaDataSource` relies on OANDA's own `complete` flag on
+each bar; `TwelveDataSource` computes each bar's implied close time
+(open + timeframe duration) and drops it if that hasn't passed yet, since
+Twelve Data doesn't expose an explicit flag for this. Either way, the
+still-forming current candle is never used.
+
+`data.sources.factory.build_live_data_source(market_config)` builds
+whichever one `config.yaml`'s `market.data_provider` selects, so scripts and
+the future signal engine don't need their own provider-selection logic.
 
 What this project deliberately does **not** do:
 
@@ -33,9 +47,8 @@ storage, everything built on top) does not need to change.
 
 ## Why not 30-second candles
 
-OANDA's API does technically support sub-minute granularity, but this
-project's supported timeframes start at 1 minute by deliberate choice (see
-SIGNAL_ENGINE.md) — not because the data doesn't exist. If a future
+This project's supported timeframes start at 1 minute by deliberate choice
+(see SIGNAL_ENGINE.md), not a data-availability limit. If a future
 timeframe genuinely can't be obtained at the granularity requested, the
 system must say so explicitly rather than interpolating or aggregating
 coarser data to fake it.

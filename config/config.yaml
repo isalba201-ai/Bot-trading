@@ -3,10 +3,13 @@
 # and record why when you change something that affects backtest results.
 
 market:
-  # "oanda" for real Forex market data via OANDA's v20 API, "csv" to only
-  # ever use user-provided files. The OANDA API token is NEVER put here —
-  # it is read from the OANDA_API_TOKEN environment variable at runtime.
-  data_provider: "oanda"
+  # "twelvedata" (real Forex data, API-key signup only, no broker account
+  # needed), "oanda" (real Forex via broker API — requires an approved
+  # demo/live account, which OANDA does not grant in every country), or
+  # "csv" to only ever use user-provided files.
+  # API keys/tokens are NEVER put here — read from environment variables:
+  # TWELVEDATA_API_KEY / OANDA_API_TOKEN.
+  data_provider: "twelvedata"
   oanda:
     environment: "practice"   # "practice" (free demo account) or "live"
   pairs:
