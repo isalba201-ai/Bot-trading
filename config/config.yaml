@@ -1,0 +1,29 @@
+# Default configuration for the OTC research system.
+# Every value here is a starting point, not a recommendation — tune deliberately
+# and record why when you change something that affects backtest results.
+
+database:
+  # SQLite by default. Swap for a postgresql:// URL later if needed; the schema
+  # is written in plain SQLAlchemy so it is not tied to one engine.
+  url: "sqlite:///data/otc_research.db"
+
+risk:
+  # Fraction of account balance risked per trade. Configurable, NOT a martingale
+  # multiplier — this value must never change automatically after a loss.
+  risk_per_trade: 0.04
+  daily_loss_limit: 0.10          # stop trading for the day if exceeded
+  max_consecutive_losses: 3        # stop trading (cooldown) if reached
+  max_trades_per_day: 10
+  max_drawdown: 0.20                # stop trading entirely if exceeded
+  cooldown_after_loss_minutes: 30
+
+signals:
+  # Only A+ signals are surfaced by default. This is deliberately restrictive:
+  # the system is not supposed to trade constantly.
+  default_min_quality_tier: "A+"
+  allow_live_execution: false   # live/automated execution is never enabled by default
+
+data_validation:
+  # A candle whose |close/prev_close - 1| exceeds this (in percent) is flagged
+  # as a suspicious change. It is NOT dropped automatically, only logged for review.
+  max_suspicious_move_pct: 5.0

@@ -1,0 +1,19 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# local databases and logs are generated artifacts, not source
+data/raw/*
+data/processed/*
+logs/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!logs/.gitkeep
+*.db
+*.sqlite
+*.sqlite3
+
+.DS_Store
