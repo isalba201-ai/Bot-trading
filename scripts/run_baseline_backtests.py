@@ -72,6 +72,16 @@ def main() -> None:
     parser.add_argument("--split", choices=["train", "validation"], default="train")
     parser.add_argument("--feature-set-version", default=FEATURE_SET_VERSION)
     parser.add_argument("--rng-seed", type=int, default=0)
+    parser.add_argument(
+        "--expiry-seconds",
+        type=int,
+        default=None,
+        help=(
+            "Override every strategy's default 300s (5-candle-at-1m/1-candle-at-5m) "
+            "expiry -- must be a whole multiple of --timeframe's own duration. "
+            "Needed on any timeframe coarser than 5 minutes, e.g. 3600 for --timeframe 1h."
+        ),
+    )
     parser.add_argument("--config", default=None, help="Path to config.yaml")
     args = parser.parse_args()
 
@@ -81,7 +91,11 @@ def main() -> None:
     session = get_session_factory(engine)()
 
     for code, strategy_cls in BASELINE_STRATEGIES.items():
-        strategy = strategy_cls()
+        strategy = (
+            strategy_cls(expiry_seconds=args.expiry_seconds)
+            if args.expiry_seconds is not None
+            else strategy_cls()
+        )
         try:
             results = run_backtest(
                 session,

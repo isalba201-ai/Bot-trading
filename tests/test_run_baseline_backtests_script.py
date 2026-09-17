@@ -99,3 +99,55 @@ def test_main_runs_every_baseline_strategy_and_updates_status(session, monkeypat
         row = session.query(Hypothesis).filter_by(code=code).one()
         assert row.status == "tested", f"{code} was not advanced"
         assert row.notes is not None
+
+
+def test_main_respects_expiry_seconds_override_for_coarser_timeframes(session, monkeypatch):
+    """A 1h timeframe needs an expiry that's a whole multiple of 3600s --
+    the default 300s would make every strategy raise. --expiry-seconds
+    exists so run_baseline_backtests.py works on any configured timeframe,
+    not just 1m/5m.
+    """
+    from otc_research.db.models import BacktestRun
+    from scripts import run_baseline_backtests
+
+    monkeypatch.setattr(
+        run_baseline_backtests, "get_session_factory", lambda engine: (lambda: session)
+    )
+    monkeypatch.setattr(run_baseline_backtests, "init_db", lambda engine: None)
+    monkeypatch.setattr(run_baseline_backtests, "get_engine", lambda url: None)
+
+    class _StubConfig:
+        database_url = "sqlite:///:memory:"
+        backtest = BacktestConfig(
+            train_fraction=0.6,
+            validation_fraction=0.2,
+            realistic=ExecutionScenarioConfig(
+                entry_delay_candles=1, signal_drop_probability=0.02, slippage_pct=0.01
+            ),
+            pessimistic=ExecutionScenarioConfig(
+                entry_delay_candles=2, signal_drop_probability=0.05, slippage_pct=0.03
+            ),
+        )
+
+    monkeypatch.setattr(run_baseline_backtests, "load_config", lambda path: _StubConfig())
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "run_baseline_backtests.py", "--pair", "TEST_FX", "--timeframe", "1h",
+            "--expiry-seconds", "3600",
+        ],
+    )
+
+    for code in ("H1", "H2", "H3", "H4", "H5", "H6", "H7", "H8", "H10"):
+        session.add(Hypothesis(code=code, name=code, description=code))
+    session.commit()
+
+    _insert_synthetic_candles(session, n=200, timeframe="1h")
+    feature_report = compute_and_store(session, "TEST_FX", "1h")
+    assert feature_report.rows_inserted > 0
+
+    run_baseline_backtests.main()
+
+    stored = session.query(BacktestRun).all()
+    assert stored  # at least some strategies fired and produced a run
+    assert all(r.expiry_seconds == 3600 for r in stored)
