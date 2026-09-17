@@ -14,7 +14,7 @@ import pandas as pd
 
 from otc_research.features import indicators
 
-FEATURE_SET_VERSION = "v1"
+FEATURE_SET_VERSION = "v2"
 
 FEATURE_NAMES: list[str] = [
     "ema_12",
@@ -34,6 +34,7 @@ FEATURE_NAMES: list[str] = [
     "body_ratio",
     "donchian_high_20",
     "donchian_low_20",
+    "atr_expansion_ratio",
     "hour_utc",
     "day_of_week",
     "trading_session_code",
@@ -81,6 +82,7 @@ def compute_features(df: pd.DataFrame) -> pd.DataFrame:
 
     out["donchian_high_20"] = indicators.donchian_high(h, period=20)
     out["donchian_low_20"] = indicators.donchian_low(l, period=20)
+    out["atr_expansion_ratio"] = indicators.atr_expansion_ratio(h, l, c)
 
     hour = indicators.hour_of_day_utc(df["timestamp"])
     out["hour_utc"] = hour

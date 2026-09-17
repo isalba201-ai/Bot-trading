@@ -91,8 +91,19 @@ def simulate(
     n = len(candles)
 
     for i, candle in enumerate(candles):
-        feats = features_by_timestamp.get(candle.timestamp)
-        if feats is None or not strategy.required_features.issubset(feats.keys()):
+        stored_feats = features_by_timestamp.get(candle.timestamp)
+        # Reserved keys always available from the candle itself (raw price,
+        # not a computed/stored Feature row) — needed by strategies like
+        # H5's breakout, which compares the current close to a baseline.
+        # Stored features win on a name clash (there shouldn't be one).
+        feats: dict[str, float] = {
+            "open": candle.open,
+            "high": candle.high,
+            "low": candle.low,
+            "close": candle.close,
+            **(stored_feats or {}),
+        }
+        if not strategy.required_features.issubset(feats.keys()):
             continue  # not enough history yet for this strategy's features
 
         direction = strategy.decide(feats)

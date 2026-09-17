@@ -5,9 +5,20 @@ Every entry below is registered in the `hypotheses` table
 against it, so the full list of what was tried is always auditable — see
 BACKTESTING.md's section on multiple-testing control.
 
-None of these are strategies yet. They are hypotheses to be tested against
-real, validated data starting in Phase 4/5 (backtesting engine + baseline
-strategies). Nothing below should be read as a claim that it works.
+**Status: Phase 5 (baseline strategy code) is implemented** — every
+hypothesis below has a concrete, testable trigger in
+`src/otc_research/strategies/`, runnable through the Phase 4 engine (see
+the table after the hypothesis list). **None of them has actually been
+run against real market data yet.** Every row's `status` in the database
+stays `registered` until someone actually fetches real candles
+(`scripts/fetch_market_data.py`), computes features
+(`scripts/compute_features.py`), and runs
+`scripts/run_baseline_backtests.py` against them — at that point it
+becomes `tested`, meaning "has been run through the engine," never a
+claim that it works. See BACKTESTING.md's edge classification: nothing
+in this repository is entitled to be called NO EDGE / WEAK EDGE /
+PROMISING / ROBUST EDGE yet — that needs walk-forward + Monte Carlo +
+robustness testing (Phases 6-8), none of which exist yet either.
 
 | Code | Hypothesis | Status |
 |---|---|---|
@@ -62,6 +73,26 @@ technical-analysis concepts.
    anything, in principle) — not just "let's try RSI 73".
 3. It must be tested against the same discipline as everything else: no
    peeking at the out-of-sample split until development is final.
+
+## Baseline implementation (Phase 5)
+
+| Code | Implementation | Entry trigger (first version — see the file's docstring for the exact reasoning) |
+|---|---|---|
+| H1 | `strategies/h1_streak.py::H1StreakContinuation` | `same_color_streak` reaches `min_streak` (default 3) in either direction |
+| H2 | `strategies/h2_extreme_range.py::H2ExtremeRangeReversion` | `range_ratio_20` clears a threshold (default 2.0) → fade the extreme candle's color |
+| H3 | `strategies/h3_momentum.py::H3MomentumContinuation` | `roc_10` AND `ema_slope_12_3` agree in sign and clear their thresholds |
+| H4 | `strategies/h4_bollinger.py::H4BollingerMeanReversion` | `bb_pct_b_20` at or beyond 0/1 |
+| H5 | `strategies/h5_breakout.py::H5DonchianBreakout` | current close beyond `donchian_high_20` / `donchian_low_20` |
+| H6 | `strategies/h6_wick_rejection.py::H6WickRejection` | `upper_wick_ratio` / `lower_wick_ratio` clears a threshold (default 0.6) |
+| H7 | `strategies/h7_rsi_extreme.py::H7RsiExtremeConfirmed` | `rsi_14` extreme AND a confirming `same_color_streak` |
+| H8 | `strategies/h8_volatility_expansion.py::H8VolatilityExpansion` | `atr_expansion_ratio` clears a threshold; direction from `ema_slope_12_3` |
+| H9 | `strategies/h9_session_bias.py::H9SessionBias` | fires only at one explicit `(hour_utc, direction)` pair — see the file's docstring for why this one can't be a single fixed rule |
+| H10 | `strategies/h10_combined.py::H10CombinedTrendStructureMomentum` | `ema_slope_12_3`, `structure_bias`, and `roc_10` all agree |
+
+Every threshold above is a constructor parameter, not a hardcoded
+constant, specifically so Phase 6's robustness/sensitivity sweeps can
+vary it — see that module's docstring and BACKTESTING.md's
+OVERFITTED/FRAGILE classification.
 
 ## Explicitly forbidden language
 

@@ -63,16 +63,19 @@ data-generating processes.
 ## Project status
 
 Building in phases, each gated by tests before moving to the next. **Phases
-1-4 are complete**: architecture + storage, data validation, real data
+1-5 are complete**: architecture + storage, data validation, real data
 sources (Twelve Data and OANDA), point-in-time feature engineering (see
-[FEATURES.md](FEATURES.md)), and a backtesting engine that runs a
-strategy under a strict train/validation/test split and three
-execution-realism scenarios, reporting Wilson-CI-grounded win
-rate/expectancy (see [BACKTESTING.md](BACKTESTING.md)). **No hypothesis
-has actually been run through it yet** — that's Phase 5. Baseline
-strategies, robustness/walk-forward/Monte Carlo testing, and the
-on-demand "BUSCAR SEÑAL" UI — everything the signal engine needs to show
-a non-fabricated confidence number — are **not built yet**.
+[FEATURES.md](FEATURES.md)), a backtesting engine that runs a strategy
+under a strict train/validation/test split and three execution-realism
+scenarios reporting Wilson-CI-grounded win rate/expectancy, and the
+H1-H10 baseline strategies themselves, runnable through that engine (see
+[BACKTESTING.md](BACKTESTING.md) / [STRATEGIES.md](STRATEGIES.md)). **No
+hypothesis has actually been run against real market data yet** —
+they're all still `registered`, not `tested`, until someone fetches real
+candles and runs `scripts/run_baseline_backtests.py`. Robustness/
+walk-forward/Monte Carlo testing and the on-demand "BUSCAR SEÑAL" UI —
+everything the signal engine needs to show a non-fabricated confidence
+number — are **not built yet**.
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -80,7 +83,7 @@ a non-fabricated confidence number — are **not built yet**.
 | 2 | Data validation | Done |
 | 3 | Feature engineering | Done |
 | 4 | Backtesting engine | Done |
-| 5 | Baseline strategies (H1-H10) | Not started |
+| 5 | Baseline strategies (H1-H10) | Done (code only — none tested against real data yet) |
 | 6 | Robustness testing | Not started |
 | 7 | Walk-forward analysis | Not started |
 | 8 | Monte Carlo | Not started |
@@ -159,10 +162,19 @@ python scripts/run_backtest.py --strategy module.path:ClassName \
     --pair EUR_USD --timeframe 5m --split train
 ```
 
-No hypothesis strategy exists yet (Phase 5 — see STRATEGIES.md); this is
-ready for when one does. See [BACKTESTING.md](BACKTESTING.md) for the
-train/validation/test split, the three execution-realism scenarios, and
-why `--split test` should only ever be used once, deliberately.
+Point `--strategy` at e.g. `otc_research.strategies.h1_streak:H1StreakContinuation`
+(see [STRATEGIES.md](STRATEGIES.md) for the full H1-H10 list) or run all
+of them at once:
+
+```bash
+python scripts/run_baseline_backtests.py --pair EUR_USD --timeframe 5m
+```
+
+See [BACKTESTING.md](BACKTESTING.md) for the train/validation/test split,
+the three execution-realism scenarios, and why `--split test` should only
+ever be used once, deliberately (`run_baseline_backtests.py` doesn't even
+offer it — use `run_backtest.py` directly, one strategy at a time, when
+it's actually time).
 
 ## Import a CSV file instead
 

@@ -4,12 +4,19 @@ STRATEGIES.md; this module only fixes the shape they must have, so Phase 4
 (this engine) can be built and tested against a throwaway example without
 waiting on Phase 5.
 
-A Strategy is deliberately given nothing but a dict of already-computed,
-already point-in-time-safe feature values for one candle (see
-FEATURES.md) — never raw candles, never a data source, never anything
-about what happened after that candle. That's what makes engine-level
-look-ahead bias structurally hard to introduce: the strategy physically
-cannot see the future because the engine never hands it any.
+A Strategy is deliberately given nothing but a dict of feature values for
+one candle — never a data source, never anything about what happened
+after that candle. That's what makes engine-level look-ahead bias
+structurally hard to introduce: the strategy physically cannot see the
+future because the engine never hands it any.
+
+The dict always carries the reserved keys ``"open"``/``"high"``/
+``"low"``/``"close"`` (the current candle's own raw OHLC — this is
+needed by e.g. a breakout strategy comparing the close to a computed
+baseline), plus whatever already-computed, already point-in-time-safe
+``Feature`` rows exist for that timestamp (see FEATURES.md). List any of
+the reserved keys in ``required_features`` too if your strategy needs
+them — they're merged in by the engine, not stored in the database.
 """
 
 from __future__ import annotations

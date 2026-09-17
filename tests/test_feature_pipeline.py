@@ -11,7 +11,7 @@ import datetime as dt
 import numpy as np
 
 from otc_research.db.models import Candle, Feature
-from otc_research.features.engine import FEATURE_NAMES
+from otc_research.features.engine import FEATURE_NAMES, FEATURE_SET_VERSION
 from otc_research.features.pipeline import compute_and_store
 
 
@@ -50,7 +50,7 @@ def test_compute_and_store_inserts_expected_feature_rows(session):
     stored = session.query(Feature).filter_by(asset="TEST_FX", timeframe="1m").all()
     assert len(stored) == report.rows_inserted
     assert {f.name for f in stored} <= set(FEATURE_NAMES)
-    assert all(f.feature_set_version == "v1" for f in stored)
+    assert all(f.feature_set_version == FEATURE_SET_VERSION for f in stored)
 
 
 def test_rerunning_is_idempotent_no_duplicates(session):

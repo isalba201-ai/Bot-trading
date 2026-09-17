@@ -80,6 +80,21 @@ def atr(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14) -> 
     return tr.ewm(alpha=1.0 / period, adjust=False, min_periods=period).mean()
 
 
+def atr_expansion_ratio(
+    high: pd.Series, low: pd.Series, close: pd.Series, atr_period: int = 14, baseline_period: int = 20
+) -> pd.Series:
+    """Current ATR vs. the average ATR of the PRECEDING ``baseline_period``
+    candles (H8 volatility-regime-change detection): a ratio well above 1
+    means volatility has expanded relative to its own recent (calmer)
+    baseline. Same "exclude the current value from its own baseline"
+    principle as range_ratio/donchian, applied to ATR instead of raw
+    range.
+    """
+    atr_series = atr(high, low, close, period=atr_period)
+    baseline = atr_series.shift(1).rolling(baseline_period, min_periods=baseline_period).mean()
+    return atr_series / baseline.replace(0.0, np.nan)
+
+
 def bollinger_bands(
     close: pd.Series, period: int = 20, num_std: float = 2.0
 ) -> tuple[pd.Series, pd.Series, pd.Series, pd.Series]:

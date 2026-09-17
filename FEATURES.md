@@ -36,7 +36,14 @@ lookback isn't satisfied yet (not enough history), that (asset,
 timeframe, timestamp, name) row is simply not written — never a 0 or a
 carried-forward previous value standing in for "unknown".
 
-## Feature set (`feature_set_version = "v1"`)
+## Feature set (`feature_set_version = "v2"`, current)
+
+- **v1** — initial set (H1-H7, H9, H10 support). Superseded, not deleted —
+  any `Feature` row still stored under `v1` is exactly what it always
+  was; nothing here is edited in place.
+- **v2** — adds `atr_expansion_ratio` (needed for H8, see STRATEGIES.md /
+  `src/otc_research/strategies/h8_volatility_expansion.py`). No existing
+  `v1` column's formula changed.
 
 | Feature | Formula / definition | Supports hypothesis |
 |---|---|---|
@@ -51,6 +58,7 @@ carried-forward previous value standing in for "unknown".
 | `range_ratio_20` | `(high[t]-low[t]) / mean(range[t-20..t-1])` — current range vs. the average of the **preceding** 20 candles, so one huge candle can't inflate its own baseline | H2 |
 | `upper_wick_ratio`, `lower_wick_ratio`, `body_ratio` | Wick/body sizes as a fraction of the candle's full range; the three always sum to exactly 1 | H6 |
 | `donchian_high_20`, `donchian_low_20` | Highest high / lowest low of the **preceding** 20 candles (current candle excluded from its own baseline) | H5 |
+| `atr_expansion_ratio` | `atr_14[t] / mean(atr_14[t-20..t-1])` — current volatility vs. its own recent (preceding-20) baseline; well above 1 = expansion | H8 |
 | `hour_utc` | UTC hour of the candle's open time (0-23) | H9 |
 | `day_of_week` | Monday=0 ... Sunday=6 | H9 |
 | `trading_session_code` | Approximate UTC session bucket: `0`=Sydney, `1`=Tokyo (also covers the Tokyo/London overlap), `2`=London, `3`=London/New York overlap, `4`=New York. Not adjusted for DST — a first version, see below | H9 |

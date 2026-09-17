@@ -21,9 +21,9 @@ layer in isolation.
 ├───────────────────────────────────────────────────────────────┤
 │  6-8. Robustness, walk-forward, Monte Carlo                   │
 ├───────────────────────────────────────────────────────────────┤
-│  5. Baseline strategies (H1-H10)                                │
+│  5. Baseline strategies (H1-H10, this phase)                    │
 ├───────────────────────────────────────────────────────────────┤
-│  4. Backtesting engine (this phase)                            │
+│  4. Backtesting engine                                          │
 ├───────────────────────────────────────────────────────────────┤
 │  3. Feature engineering (point-in-time only)                   │
 ├───────────────────────────────────────────────────────────────┤
@@ -62,6 +62,9 @@ src/otc_research/
     simulator.py            # walks candles+features -> simulated trades
     metrics.py               # Wilson CI win rate, expectancy — never a bare point estimate
     engine.py                # orchestrates candles+features -> split -> simulate -> BacktestRun
+  strategies/
+    h1_streak.py .. h10_combined.py  # one Strategy implementation per hypothesis (STRATEGIES.md)
+    __init__.py               # BASELINE_STRATEGIES registry (H9 excluded, needs explicit params)
   utils/
     logging.py            # shared logger (stderr + logs/otc_research.log)
     timeframes.py          # timeframe string <-> seconds (dependency-free, avoids import cycles)
@@ -70,7 +73,8 @@ scripts/
   import_csv.py          # CLI to ingest a CSV file
   fetch_market_data.py    # CLI to fetch/backfill real candles from the configured provider
   compute_features.py     # CLI to compute Phase 3 features from stored candles
-  run_backtest.py         # CLI to run a strategy through the Phase 4 backtesting engine
+  run_backtest.py         # CLI to run one strategy through the Phase 4 backtesting engine
+  run_baseline_backtests.py # CLI to run every Phase 5 baseline strategy at once (train/validation only)
   seed_hypotheses.py      # registers the hypotheses in STRATEGIES.md
 config/
   config.yaml            # risk limits, signal thresholds, pairs, DB url
@@ -116,15 +120,24 @@ restructuring what already exists.
    Results are summarized with a 95% Wilson confidence interval
    (`backtest.metrics`) and persisted as one `BacktestRun` row per
    scenario — see BACKTESTING.md for the full methodology this
-   implements, and what's still Phase 5-8.
+   implements, and what's still Phase 6-8.
+6. `otc_research.strategies` implements H1-H10 (STRATEGIES.md) against
+   this interface — each one a pure function of a point-in-time feature
+   dict (plus the current candle's raw OHLC) to `"CALL"`/`"PUT"`/`None`,
+   with every threshold a constructor parameter so Phase 6's sensitivity
+   sweeps can vary it. `scripts/run_baseline_backtests.py` runs all of
+   them (except H9, which needs explicit parameters) against train/
+   validation data and advances each `Hypothesis.status` from
+   `registered` to `tested` — never a claim of edge, just that it has
+   actually been run through the engine.
 
-Everything past this point (the H1-H10 strategies themselves, robustness/
-walk-forward/Monte Carlo testing, signals) does not exist yet and must be
-built strictly on top of validated `Feature` rows and this engine — never
-by recomputing indicators ad hoc or reading candles directly, so that
-every strategy sees the same, auditable numbers and validation can't be
-silently bypassed. The eventual "BUSCAR SEÑAL" UI (Phase 9) is a thin
-layer that triggers this same fetch → validate → store → feature →
+Everything past this point (robustness/walk-forward/Monte Carlo testing,
+signals) does not exist yet and must be built strictly on top of
+validated `Feature` rows and this engine — never by recomputing
+indicators ad hoc or reading candles directly, so that every strategy
+sees the same, auditable numbers and validation can't be silently
+bypassed. The eventual "BUSCAR SEÑAL" UI (Phase 9) is a thin layer that
+triggers this same fetch → validate → store → feature →
 strategy-evaluation path on demand, then either shows a signal or "NO HAY
 SEÑAL" — see SIGNAL_ENGINE.md. It never places an order.
 

@@ -58,6 +58,17 @@ def test_atr_is_never_negative():
     assert (result >= 0).all()
 
 
+def test_atr_expansion_ratio_flags_a_volatility_jump():
+    n_quiet = 40
+    high = _series([1.001] * n_quiet + [1.00, 1.05, 1.10, 1.20])  # tiny range, then a jump
+    low = _series([1.000] * n_quiet + [0.90, 0.90, 0.90, 0.90])
+    close = _series([1.000] * n_quiet + [1.00, 1.05, 1.10, 1.20])
+    result = indicators.atr_expansion_ratio(high, low, close, atr_period=14, baseline_period=20)
+    # after the volatility jump, current ATR should sit well above its own
+    # preceding, quieter baseline.
+    assert result.iloc[-1] > 2.0
+
+
 def test_bollinger_bands_ordering_when_volatile():
     rng = np.random.default_rng(2)
     close = pd.Series(1.10 + np.cumsum(rng.normal(0, 0.001, size=40)))
