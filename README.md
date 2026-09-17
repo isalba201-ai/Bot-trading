@@ -62,17 +62,19 @@ data-generating processes.
 
 ## Project status
 
-Building in phases, each gated by tests before moving to the next. **Phase 1
-(architecture + storage) and Phase 2 (data validation) are complete,
-including real data sources (Twelve Data and OANDA).** The on-demand UI,
-feature engineering, backtesting engine, and everything the signal engine
-needs to show a non-fabricated confidence number are **not built yet**.
+Building in phases, each gated by tests before moving to the next. **Phases
+1-3 are complete**: architecture + storage, data validation, real data
+sources (Twelve Data and OANDA), and point-in-time feature engineering
+(see [FEATURES.md](FEATURES.md)). The backtesting engine, baseline
+strategies, robustness testing, and the on-demand "BUSCAR SEÑAL" UI —
+everything the signal engine needs to show a non-fabricated confidence
+number — are **not built yet**.
 
 | Phase | Scope | Status |
 |---|---|---|
 | 1 | Architecture + data storage | Done |
 | 2 | Data validation | Done |
-| 3 | Feature engineering | Not started |
+| 3 | Feature engineering | Done |
 | 4 | Backtesting engine | Not started |
 | 5 | Baseline strategies | Not started |
 | 6 | Robustness testing | Not started |
@@ -135,6 +137,17 @@ applied (duplicate/out-of-order timestamps, gaps, impossible OHLC values,
 suspicious moves, source changes — nothing is ever fabricated to fill a
 gap).
 
+## Compute features from stored candles
+
+```bash
+python scripts/compute_features.py --pair EUR_USD --timeframe 5m
+```
+
+Computes the point-in-time feature set described in
+[FEATURES.md](FEATURES.md) (trend, momentum, volatility, candle shape,
+session, and a first market-structure signal) from already-ingested
+candles and stores them. Safe to re-run — see FEATURES.md.
+
 ## Import a CSV file instead
 
 ```bash
@@ -153,6 +166,7 @@ pytest
 
 - [ARCHITECTURE.md](ARCHITECTURE.md) — system layers and data flow
 - [DATA.md](DATA.md) — schema, data sources, validation rules
+- [FEATURES.md](FEATURES.md) — point-in-time feature set and its formulas
 - [BACKTESTING.md](BACKTESTING.md) — methodology (train/val/test, walk-forward,
   Monte Carlo, multiple-testing controls) — implemented starting Phase 4
 - [STRATEGIES.md](STRATEGIES.md) — hypotheses under investigation and their status
