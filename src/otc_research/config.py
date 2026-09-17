@@ -39,6 +39,32 @@ class DataValidationConfig:
     max_suspicious_move_pct: float
 
 
+@dataclasses.dataclass(frozen=True)
+class ExecutionScenarioConfig:
+    entry_delay_candles: int
+    signal_drop_probability: float
+    slippage_pct: float
+
+
+@dataclasses.dataclass(frozen=True)
+class BacktestConfig:
+    train_fraction: float
+    validation_fraction: float
+    realistic: ExecutionScenarioConfig
+    pessimistic: ExecutionScenarioConfig
+
+    def __post_init__(self) -> None:
+        if not 0.0 < self.train_fraction < 1.0:
+            raise ValueError("backtest.train_fraction must be between 0 and 1")
+        if not 0.0 < self.validation_fraction < 1.0:
+            raise ValueError("backtest.validation_fraction must be between 0 and 1")
+        if self.train_fraction + self.validation_fraction >= 1.0:
+            raise ValueError(
+                "backtest.train_fraction + validation_fraction must leave a "
+                "nonzero test fraction"
+            )
+
+
 KNOWN_DATA_PROVIDERS = ("twelvedata", "oanda", "csv")
 
 
@@ -64,6 +90,7 @@ class AppConfig:
     signals: SignalsConfig
     data_validation: DataValidationConfig
     market: MarketConfig
+    backtest: BacktestConfig
 
 
 def load_config(path: str | Path | None = None) -> AppConfig:
@@ -78,6 +105,8 @@ def load_config(path: str | Path | None = None) -> AppConfig:
         )
 
     market_raw = raw["market"]
+    backtest_raw = raw["backtest"]
+    execution_raw = backtest_raw["execution"]
     return AppConfig(
         database_url=raw["database"]["url"],
         risk=RiskConfig(**raw["risk"]),
@@ -88,5 +117,11 @@ def load_config(path: str | Path | None = None) -> AppConfig:
             oanda_environment=market_raw["oanda"]["environment"],
             pairs=list(market_raw["pairs"]),
             timeframes=list(market_raw["timeframes"]),
+        ),
+        backtest=BacktestConfig(
+            train_fraction=backtest_raw["train_fraction"],
+            validation_fraction=backtest_raw["validation_fraction"],
+            realistic=ExecutionScenarioConfig(**execution_raw["realistic"]),
+            pessimistic=ExecutionScenarioConfig(**execution_raw["pessimistic"]),
         ),
     )

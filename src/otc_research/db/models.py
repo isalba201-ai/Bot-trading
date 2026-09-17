@@ -157,6 +157,66 @@ class Hypothesis(Base):
     notes = Column(Text, nullable=True)
 
 
+class BacktestRun(Base):
+    """Aggregate, audited result of running one strategy over one
+    asset/timeframe/split/execution-scenario combination (Phase 4).
+
+    Individual simulated trades are NOT persisted here — they are exactly
+    reproducible on demand from (Candle/Feature rows, strategy_label,
+    split, execution_scenario, rng_seed), so storing only the aggregate
+    keeps the database lean without losing auditability. What IS
+    write-once here is the same statistical grounding SIGNAL_ENGINE.md
+    requires before any confidence number is shown: sample size, win
+    rate, and a 95% Wilson confidence interval, never a bare point
+    estimate.
+
+    A row with ``split="test"`` is significant on its own: BACKTESTING.md
+    requires the out-of-sample test split to be touched exactly once,
+    after every development decision is final — see backtest/engine.py,
+    which logs a loud warning every time one is created.
+    """
+
+    __tablename__ = "backtest_runs"
+
+    id = Column(Integer, primary_key=True)
+
+    # Nullable: a hypothesis-backed run points at STRATEGIES.md's registry;
+    # an ad-hoc/test-only strategy (e.g. exercising this engine before
+    # Phase 5's real strategies exist) leaves this null and relies on
+    # strategy_label instead.
+    hypothesis_code = Column(String(32), ForeignKey("hypotheses.code"), nullable=True)
+    strategy_label = Column(String(64), nullable=False)
+
+    asset = Column(String(32), nullable=False)
+    timeframe = Column(String(8), nullable=False)
+    feature_set_version = Column(String(32), nullable=False)
+
+    split = Column(String(16), nullable=False)  # train / validation / test
+    execution_scenario = Column(String(16), nullable=False)  # optimistic / realistic / pessimistic
+    expiry_seconds = Column(Integer, nullable=False)
+
+    sample_size = Column(Integer, nullable=False)
+    wins = Column(Integer, nullable=False)
+    losses = Column(Integer, nullable=False)
+    voided = Column(Integer, nullable=False)
+
+    # Null when sample_size == 0 (nothing fired) -- never a fabricated 0.
+    win_rate = Column(Float, nullable=True)
+    win_rate_ci_low = Column(Float, nullable=True)
+    win_rate_ci_high = Column(Float, nullable=True)
+    expectancy_pct = Column(Float, nullable=True)  # mean pnl_pct per resolved trade
+
+    rng_seed = Column(Integer, nullable=False)
+    run_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)
+
+    __table_args__ = (
+        Index(
+            "ix_backtest_run_lookup",
+            "asset", "timeframe", "hypothesis_code", "split", "execution_scenario",
+        ),
+    )
+
+
 class Signal(Base):
     """A generated (paper or live) signal and, once resolved, its outcome.
 

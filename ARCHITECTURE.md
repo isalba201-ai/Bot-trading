@@ -21,9 +21,11 @@ layer in isolation.
 ├───────────────────────────────────────────────────────────────┤
 │  6-8. Robustness, walk-forward, Monte Carlo                   │
 ├───────────────────────────────────────────────────────────────┤
-│  4-5. Backtesting engine + baseline strategies                │
+│  5. Baseline strategies (H1-H10)                                │
 ├───────────────────────────────────────────────────────────────┤
-│  3. Feature engineering (point-in-time only, this phase)       │
+│  4. Backtesting engine (this phase)                            │
+├───────────────────────────────────────────────────────────────┤
+│  3. Feature engineering (point-in-time only)                   │
 ├───────────────────────────────────────────────────────────────┤
 │  2. Data validation                                            │
 ├───────────────────────────────────────────────────────────────┤
@@ -53,13 +55,22 @@ src/otc_research/
     indicators.py         # pure, point-in-time-safe indicator functions
     engine.py              # compute_features(df) -> versioned feature set
     pipeline.py            # orchestrates candles -> engine -> Feature rows
+  backtest/
+    strategy.py            # Strategy protocol every Phase 5 hypothesis implements
+    splits.py               # strict temporal train/validation/test split
+    execution.py            # optimistic/realistic/pessimistic execution scenarios
+    simulator.py            # walks candles+features -> simulated trades
+    metrics.py               # Wilson CI win rate, expectancy — never a bare point estimate
+    engine.py                # orchestrates candles+features -> split -> simulate -> BacktestRun
   utils/
     logging.py            # shared logger (stderr + logs/otc_research.log)
+    timeframes.py          # timeframe string <-> seconds (dependency-free, avoids import cycles)
 scripts/
   init_db.py             # create schema
   import_csv.py          # CLI to ingest a CSV file
   fetch_market_data.py    # CLI to fetch/backfill real candles from the configured provider
   compute_features.py     # CLI to compute Phase 3 features from stored candles
+  run_backtest.py         # CLI to run a strategy through the Phase 4 backtesting engine
   seed_hypotheses.py      # registers the hypotheses in STRATEGIES.md
 config/
   config.yaml            # risk limits, signal thresholds, pairs, DB url
@@ -97,15 +108,25 @@ restructuring what already exists.
    rows that already exist, and never storing a value for a timestamp that
    doesn't yet have enough history for that indicator's lookback. See
    FEATURES.md for the exact feature set and its point-in-time guarantee.
+5. `backtest.engine.run_backtest()` reads `Candle` + `Feature` rows for an
+   asset/timeframe (never recomputing indicators itself), applies the
+   strict temporal split (`backtest.splits`), and runs a `Strategy`
+   (`backtest.strategy`) through the simulator (`backtest.simulator`)
+   under all three execution-realism scenarios (`backtest.execution`).
+   Results are summarized with a 95% Wilson confidence interval
+   (`backtest.metrics`) and persisted as one `BacktestRun` row per
+   scenario — see BACKTESTING.md for the full methodology this
+   implements, and what's still Phase 5-8.
 
-Everything past this point (backtesting, signals) does not exist yet and
-must be built strictly on top of validated `Feature` rows — never by
-recomputing indicators ad hoc or reading candles directly, so that every
-strategy sees the same, auditable numbers and validation can't be silently
-bypassed. The eventual "BUSCAR SEÑAL" UI (Phase 9) is a thin layer that
-triggers this same fetch → validate → store → feature → strategy-evaluation
-path on demand, then either shows a signal or "NO HAY SEÑAL" — see
-SIGNAL_ENGINE.md. It never places an order.
+Everything past this point (the H1-H10 strategies themselves, robustness/
+walk-forward/Monte Carlo testing, signals) does not exist yet and must be
+built strictly on top of validated `Feature` rows and this engine — never
+by recomputing indicators ad hoc or reading candles directly, so that
+every strategy sees the same, auditable numbers and validation can't be
+silently bypassed. The eventual "BUSCAR SEÑAL" UI (Phase 9) is a thin
+layer that triggers this same fetch → validate → store → feature →
+strategy-evaluation path on demand, then either shows a signal or "NO HAY
+SEÑAL" — see SIGNAL_ENGINE.md. It never places an order.
 
 ## Why not Pocket Option OTC
 

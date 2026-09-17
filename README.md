@@ -63,20 +63,24 @@ data-generating processes.
 ## Project status
 
 Building in phases, each gated by tests before moving to the next. **Phases
-1-3 are complete**: architecture + storage, data validation, real data
-sources (Twelve Data and OANDA), and point-in-time feature engineering
-(see [FEATURES.md](FEATURES.md)). The backtesting engine, baseline
-strategies, robustness testing, and the on-demand "BUSCAR SEÑAL" UI —
-everything the signal engine needs to show a non-fabricated confidence
-number — are **not built yet**.
+1-4 are complete**: architecture + storage, data validation, real data
+sources (Twelve Data and OANDA), point-in-time feature engineering (see
+[FEATURES.md](FEATURES.md)), and a backtesting engine that runs a
+strategy under a strict train/validation/test split and three
+execution-realism scenarios, reporting Wilson-CI-grounded win
+rate/expectancy (see [BACKTESTING.md](BACKTESTING.md)). **No hypothesis
+has actually been run through it yet** — that's Phase 5. Baseline
+strategies, robustness/walk-forward/Monte Carlo testing, and the
+on-demand "BUSCAR SEÑAL" UI — everything the signal engine needs to show
+a non-fabricated confidence number — are **not built yet**.
 
 | Phase | Scope | Status |
 |---|---|---|
 | 1 | Architecture + data storage | Done |
 | 2 | Data validation | Done |
 | 3 | Feature engineering | Done |
-| 4 | Backtesting engine | Not started |
-| 5 | Baseline strategies | Not started |
+| 4 | Backtesting engine | Done |
+| 5 | Baseline strategies (H1-H10) | Not started |
 | 6 | Robustness testing | Not started |
 | 7 | Walk-forward analysis | Not started |
 | 8 | Monte Carlo | Not started |
@@ -147,6 +151,18 @@ Computes the point-in-time feature set described in
 [FEATURES.md](FEATURES.md) (trend, momentum, volatility, candle shape,
 session, and a first market-structure signal) from already-ingested
 candles and stores them. Safe to re-run — see FEATURES.md.
+
+## Run a strategy through the backtesting engine
+
+```bash
+python scripts/run_backtest.py --strategy module.path:ClassName \
+    --pair EUR_USD --timeframe 5m --split train
+```
+
+No hypothesis strategy exists yet (Phase 5 — see STRATEGIES.md); this is
+ready for when one does. See [BACKTESTING.md](BACKTESTING.md) for the
+train/validation/test split, the three execution-realism scenarios, and
+why `--split test` should only ever be used once, deliberately.
 
 ## Import a CSV file instead
 

@@ -15,25 +15,18 @@ from dataclasses import dataclass
 from typing import Sequence
 
 from otc_research.data.sources.base import RawCandle
+from otc_research.utils.timeframes import timeframe_to_seconds
 
-_TIMEFRAME_SECONDS = {
-    "1m": 60,
-    "5m": 300,
-    "15m": 900,
-    "30m": 1800,
-    "1h": 3600,
-    "4h": 14400,
-    "1d": 86400,
-}
-
-
-def timeframe_to_seconds(timeframe: str) -> int:
-    try:
-        return _TIMEFRAME_SECONDS[timeframe]
-    except KeyError as exc:
-        raise ValueError(
-            f"Unknown timeframe {timeframe!r}; known values: {sorted(_TIMEFRAME_SECONDS)}"
-        ) from exc
+__all__ = [
+    "timeframe_to_seconds",
+    "DataQualityFinding",
+    "find_duplicate_timestamps",
+    "find_out_of_order",
+    "find_gaps",
+    "find_impossible_values",
+    "find_suspicious_moves",
+    "find_source_changes",
+]
 
 
 @dataclass(frozen=True)

@@ -26,7 +26,7 @@ from typing import Iterable, Iterator
 import requests
 
 from otc_research.data.sources.base import DataSource, RawCandle
-from otc_research.data.validation import timeframe_to_seconds
+from otc_research.utils.timeframes import timeframe_to_seconds
 
 TIMEFRAME_TO_INTERVAL = {
     "1m": "1min",

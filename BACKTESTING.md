@@ -1,9 +1,17 @@
 # Backtesting methodology
 
-**Status: this is the planned methodology. The backtesting engine itself
-(Phase 4) is not implemented yet — nothing in this repository has run a
-backtest.** This document exists now, before any engine code, so the rules
-are fixed before results exist that could tempt bending them.
+**Status: Phase 4 (the backtesting engine) is implemented** —
+`src/otc_research/backtest/` runs a strategy over stored candles/features
+under the temporal split and the three execution-realism scenarios below,
+and reports Wilson-CI-grounded win rate and expectancy (see "What's
+implemented" below for the exact mapping). **Phase 5 (the actual H1-H10
+strategies), Phase 6 (robustness/sensitivity sweeps), Phase 7
+(walk-forward analysis), and Phase 8 (Monte Carlo) are not implemented
+yet** — no hypothesis has been run through the engine, so nothing in this
+repository has actually been classified NO EDGE / WEAK EDGE / PROMISING /
+ROBUST EDGE. This document was written before any of that code, so the
+rules were fixed before results existed that could tempt bending them —
+see git history if you want the pre-implementation version.
 
 ## Train / validation / test split
 
@@ -109,3 +117,26 @@ parameter sensitivity — never on a single metric like "win rate > 55%".
 Only **ROBUST EDGE** strategies are eligible to feed the signal engine
 (Phase 9), and even then only above the configured quality tier (default:
 A+ only — see RISK_MANAGEMENT.md).
+
+## What's implemented (Phase 4) vs. still planned
+
+| This document's rule | Implemented in |
+|---|---|
+| Strict temporal 60/20/20 train/validation/test split, never shuffled | `backtest/splits.py` |
+| Test split touched deliberately, not by accident | `backtest/engine.py::run_backtest` requires an explicit `split=` argument and logs a loud warning on `split="test"` |
+| Execution realism: optimistic / realistic / pessimistic | `backtest/execution.py` (parameters in `config.yaml: backtest.execution`), applied by `backtest/simulator.py` (entry delay, signal drop probability, slippage) |
+| Win rate reported only with sample size + 95% CI, never a bare point estimate | `backtest/metrics.py::wilson_confidence_interval` / `summarize_trades` |
+| Expectancy in price terms (a plain directional signal has no fixed payout) | `backtest/metrics.py::TradeStats.expectancy_pct` |
+| Every run's inputs auditable | `db.models.BacktestRun`, one row per (strategy, asset, timeframe, split, scenario), including the RNG seed used |
+| Walk-forward analysis | **Not implemented (Phase 7)** |
+| Monte Carlo (bootstrap/permutation of trade sequences) | **Not implemented (Phase 8)** |
+| Robustness / parameter sensitivity sweeps | **Not implemented (Phase 6)** |
+| Multiple-testing / data-mining control across many hypotheses | Partially: `Hypothesis` table + `BacktestRun` rows make every run auditable, but no automatic adjustment of significance thresholds for the number of comparisons made exists yet |
+| Final edge classification (NO EDGE / WEAK EDGE / PROMISING / ROBUST EDGE) | **Not implemented** — requires walk-forward + Monte Carlo + robustness together, none of which exist yet; nothing produced by the engine today should be read as a classification |
+| The H1-H10 strategies themselves | **Not implemented (Phase 5)** — `backtest/strategy.py` only defines the interface they'll implement |
+
+Individual simulated trades are not persisted to the database — they are
+exactly reproducible from (candles, features, strategy, split, scenario,
+rng_seed), all of which a `BacktestRun` row records, so only the
+aggregate statistics are stored to keep the database lean without losing
+auditability.

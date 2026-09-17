@@ -50,3 +50,21 @@ data_validation:
   # A candle whose |close/prev_close - 1| exceeds this (in percent) is flagged
   # as a suspicious change. It is NOT dropped automatically, only logged for review.
   max_suspicious_move_pct: 5.0
+
+backtest:
+  # Strict temporal split (never shuffled) — see BACKTESTING.md.
+  # test fraction = 1 - train_fraction - validation_fraction.
+  train_fraction: 0.6
+  validation_fraction: 0.2
+  execution:
+    # "optimistic" (no latency, no slippage, every signal fills) is not
+    # configurable on purpose — it is the fixed zero baseline every other
+    # scenario is compared against.
+    realistic:
+      entry_delay_candles: 1        # signal decided on close of bar t, entered at bar t+1+delay
+      signal_drop_probability: 0.02 # fraction of signals discarded (missed candle/execution error)
+      slippage_pct: 0.01            # adverse entry-price adjustment, percent
+    pessimistic:
+      entry_delay_candles: 2
+      signal_drop_probability: 0.05
+      slippage_pct: 0.03
