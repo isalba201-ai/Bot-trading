@@ -379,6 +379,113 @@ independent replication even before execution costs were the deciding
 factor. This is no longer a statement about any one hypothesis; it is
 the accumulated result of the entire investigation to date.
 
+## Pivot: systematic statistical discovery (H1-H20 superseded, not extended)
+
+Every hypothesis above (H1-H20) was hand-picked: a person chose an
+indicator or combination, then it was tested. After H1-H20 showed no
+credible, replicated edge at any timeframe (see above), the project was
+explicitly redirected away from more hand-picked combinations and toward
+a bottom-up, systematic search: baseline win-rate statistics →
+quantile-binned single-feature conditioning → a combinatorial 2-3-way
+interaction search over binned features, with every combination tried
+logged and Benjamini-Hochberg FDR-corrected before anything is treated as
+a candidate → only a fixed, pre-registered accept/reject bar
+(`otc_research/research/candidacy.py`) decides whether a discovered
+condition earns the out-of-sample TEST split, touched at most once per
+candidate. See `/root/.claude/plans/sequential-sparking-candle.md` for
+the full design; this section reports the first real-data run of it.
+
+### Step 7 run: scope
+
+- **Data**: real, already-ingested EUR/USD (1m, 5m, 15m), GBP/USD (5m),
+  USD/JPY (5m) — 5 asset/timeframe combinations, ~5,000 candles each,
+  labeled `REAL_FOREX_DATA` throughout (`research/dataset.py`).
+- **Features searched**: a deliberately restricted 10-feature core subset
+  spanning momentum (`return_1`, `return_5`), trend (`rsi_14`, `adx_14`),
+  mean-reversion (`cci_20`, `rci_9`, `bb_pct_b_20`), volatility
+  (`atr_expansion_ratio`, `move_size_atr`), and position-in-range
+  (`pct_position_in_range_20`) — not all ~40 v4 features at once, and
+  2-way interactions only (not yet 3-way) — a runtime-budget choice, not
+  a methodological one; both are natural next steps if this subset had
+  found something worth extending.
+- **Targets**: `call_wins_h`/`put_wins_h` for h ∈ {1, 2, 3, 5} candles —
+  40 target searches total (5 datasets × 4 horizons × 2 directions), each
+  a 45-pair × 16-bin-combination = 720-condition grid, all on the TRAIN
+  split only. **28,800 condition trials total, every one logged to the
+  new `condition_trials` table before correction.**
+
+### Step 7 run: results
+
+- **2,902 of 28,800 trials (10.1%) survived Benjamini-Hochberg FDR
+  correction** (q=0.05) — well above the ~5% a pure null would produce,
+  so the search is finding real, non-random structure in how these
+  features relate to short-horizon price direction in the naive,
+  frictionless sense `research/dataset.py`'s targets measure (immediate
+  close-to-close comparison, no execution model at all).
+- **Every FDR-significant condition's top 3 (by p-value) per target were
+  re-evaluated by `research/candidacy.py` — 120 evaluations — through
+  the same realistic-execution simulator (Phase 4) used for H1-H20: 1
+  candle of entry delay, 0.01% slippage, 2% signal-drop probability
+  (`config.yaml`'s `backtest.execution.realistic`).**
+  - **0 of 120 passed the first gate** (TRAIN sample size + payout-
+    adjusted margin over break-even at a 0.85 payout, break-even 54.05%).
+    **119 of 120 were rejected there**, with a median simulated TRAIN win
+    rate of **20.7%** (min 5.6%, max 65.8%) — not merely "no edge", but
+    *the labeled direction losing on the clear majority of matched
+    trades* once the trade is actually simulated with entry delay and
+    slippage, rather than read straight off the next candle's close.
+  - The 1 condition that cleared gate 1 (USD/JPY 5m, CALL, h=5,
+    `return_5∈(-0.762,-0.0309] AND pct_position_in_range_20∈(0.476,0.749]`,
+    n=111, TRAIN win rate 65.8%) was rejected at **gate 2**: its
+    parameter-sensitivity sweep classified `"fragile"`, not
+    `"consistent_direction"` — the same overfitting signature every
+    fragile H1-H20 candidate showed.
+  - **0 conditions reached walk-forward or the TEST split.**
+
+### Why the naive search and the realistic simulator disagree this sharply
+
+Checking CALL and PUT win rates for the *same* condition (same matched
+candles, same entry/exit indices, same rng draws — they differ only in
+direction and the sign of the slippage adjustment) shows both well below
+50% simultaneously in the typical case (e.g. USD/JPY 5m h=3,
+`return_1∈(0.000125,0.0127] AND return_5∈(3.52e-05,0.0251]`: CALL 18.9%,
+PUT 12.7% — CALL+PUT should sum to roughly 100% minus a negligible tie
+rate if the underlying price move were decisive either way). The
+explanation is execution cost, not a bug: at these timeframes, a large
+fraction of the matched short-horizon moves are smaller than the
+round-trip slippage cost, so **both directions lose** against costs on
+the same trade. `research/dataset.py`'s exploratory target (a bare
+close-to-close comparison) has no way to see this — it is intentionally
+a cheap, fast proxy for the discovery search's combinatorics, never a
+claim about tradeable performance. That gap is exactly why
+`research/candidacy.py` exists as a mandatory, separate re-validation
+gate through the same battle-tested simulator every hand-picked
+hypothesis already had to clear, rather than trusting discovery's own
+output directly — and this run is the first real evidence that gate is
+doing necessary work, not rubber-stamping.
+
+### Conclusion: **B — Promising but insufficient**
+
+Per the plan's four-way classification: discovery found statistically
+significant (FDR-corrected) structure — this is not "no evidence" in the
+literal sense — but **none of it survived the very first re-validation
+gate against realistic trade execution**, let alone walk-forward or an
+out-of-sample TEST read. No condition from this run is a candidate.
+
+This reaches the same practical conclusion as H1-H20 (no credible,
+execution-cost-adjusted, replicated edge yet found in this data with the
+indicators and combinations tried), but by an independent, systematic,
+pre-registered method rather than hand-picked hypotheses — which makes it
+corroborating evidence, not a repeat of the same test.
+
+**Scope not yet covered, and the natural next steps if resumed**: the
+remaining ~30 v4 features, 3-way interactions, the 1h timeframe (already
+extensively covered by H1-H20's own methodology), and — the most
+promising lead from the mismatch above — redefining `research/dataset.py`'s
+exploratory target to match the realistic simulator's own entry-delay/
+expiry convention, so the discovery search itself stops surfacing
+patterns that were only ever visible in a frictionless, zero-delay read.
+
 ## Explicitly forbidden language
 
 Never describe any hypothesis or strategy, at any status, as: "infallible",
