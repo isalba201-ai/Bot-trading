@@ -67,6 +67,18 @@ class Condition:
     def to_json(self) -> str:
         return json.dumps([{"feature": f, "low": lo, "high": hi} for f, lo, hi in self.parts])
 
+    @staticmethod
+    def from_json(condition_json: str) -> "Condition":
+        """Inverse of ``to_json`` — reconstructs a ``Condition`` from a
+        stored ``ConditionTrial.condition_json`` value, used by anything
+        that re-evaluates a past trial (e.g. the Step 8 execution-
+        decomposition tool) without re-running discovery.
+        """
+        parts = tuple(
+            (item["feature"], item["low"], item["high"]) for item in json.loads(condition_json)
+        )
+        return Condition(parts=parts)
+
 
 def _quantile_bin_edges(series: pd.Series, n_bins: int) -> list[tuple[float, float]]:
     try:

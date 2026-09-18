@@ -112,6 +112,7 @@ testing and the on-demand "BUSCAR SEÑAL" UI are **not built yet**.
 | 6 | Robustness testing | Done |
 | 7 | Walk-forward analysis | Done |
 | Pivot | Statistical discovery (baseline/regime/interaction search, FDR correction, candidacy gate, gated ML) | Done — first real run: conclusion B (promising but insufficient), see STRATEGIES.md |
+| Pivot audit | Deep predictability audit: A/B/C failure-mode decomposition, delay/slippage sweep, session + triple-barrier re-runs, no-trade filter, OTC data-sourcing investigation, literature review | Done — no candidate found yet; see [PREDICTABILITY_AUDIT.md](PREDICTABILITY_AUDIT.md) |
 | 9 | Signal lifecycle (persistence, notifications, manual decisions, theoretical vs. executable performance) | Done — verified via historical replay only, never live |
 | 8 | Monte Carlo | Not started |
 | 9b | "BUSCAR SEÑAL" UI + live data poller | Not started |
@@ -287,6 +288,11 @@ pytest
 - [BACKTESTING.md](BACKTESTING.md) — methodology (train/val/test, walk-forward,
   Monte Carlo, multiple-testing controls) — implemented starting Phase 4
 - [STRATEGIES.md](STRATEGIES.md) — hypotheses under investigation and their status
+- [PREDICTABILITY_AUDIT.md](PREDICTABILITY_AUDIT.md) — Step 8's audit of
+  exactly where Step 7's edge disappeared, a delay/slippage decomposition,
+  two literature-grounded re-runs, a no-trade-filter finding, the Pocket
+  Option OTC data-sourcing investigation, a tiered literature review, and
+  a hypothesis menu for future work
 - [SIGNAL_ENGINE.md](SIGNAL_ENGINE.md) — the planned "BUSCAR SEÑAL" flow, signal
   format, and confidence-reporting rules
 - [RISK_MANAGEMENT.md](RISK_MANAGEMENT.md) — no execution, no martingale,

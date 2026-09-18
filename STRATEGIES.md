@@ -486,6 +486,19 @@ exploratory target to match the realistic simulator's own entry-delay/
 expiry convention, so the discovery search itself stops surfacing
 patterns that were only ever visible in a frictionless, zero-delay read.
 
+**This is exactly what Step 8 (audit+research) did next — see
+[PREDICTABILITY_AUDIT.md](PREDICTABILITY_AUDIT.md)** for: a mechanical
+audit of exactly where this edge disappears (execution, not absence of
+predictability — 112/113 significant conditions classified "execution
+destroys it," 0 classified "no predictability" or "too small for
+payout"), a delay-vs-slippage decomposition (slippage turns out to be
+the dominant destroyer, not delay), a session-conditioned re-run and a
+triple-barrier-target re-run (both literature-motivated, both still
+0 accepted — including the first candidate in this project's history to
+reach the out-of-sample TEST split, rejected there), a no-trade-filter
+finding, the Pocket Option OTC data-sourcing investigation, a tiered
+literature review, and a hypothesis menu for future work.
+
 ## Explicitly forbidden language
 
 Never describe any hypothesis or strategy, at any status, as: "infallible",

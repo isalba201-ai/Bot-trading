@@ -50,6 +50,12 @@ def test_condition_label_and_json_roundtrip_shape():
     assert parsed == [{"feature": "rsi_14", "low": 30.0, "high": 45.0}]
 
 
+def test_condition_from_json_roundtrips_a_multi_part_condition():
+    original = Condition(parts=(("rsi_14", 30.0, 45.0), ("adx_14", 25.0, 40.0)))
+    reconstructed = Condition.from_json(original.to_json())
+    assert reconstructed == original
+
+
 # --- Benjamini-Hochberg -----------------------------------------------
 
 
