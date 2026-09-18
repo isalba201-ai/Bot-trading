@@ -308,6 +308,16 @@ pytest
   expiry duration, and gives the full matrix of every (asset, timeframe,
   horizon, direction) combination investigated so far and how far each
   reached in the candidacy funnel
+- [BINARY_OPTIONS_BACKTEST_REPORT.md](BINARY_OPTIONS_BACKTEST_REPORT.md) —
+  Step 9: the practical backtest-masivo — every H1-H20 hand-designed
+  strategy plus H9's own session-bias family (via a restricted discovery
+  run) simulated as real fixed-expiry binary CALL/PUT options across all
+  8 real datasets and 4 horizons, under the corrected execution model, a
+  NO_TRADE-filter A/B comparison, and payout sensitivity across
+  {70,75,80,85,90}%. Result: 884 evaluations, 0 hand-designed strategies
+  accepted, 1 discovered session-bias condition mechanically cleared all
+  four gates but is fragile and payout-dependent (crossover payout
+  83.25%) — reported honestly, not treated as validated
 - [SIGNAL_ENGINE.md](SIGNAL_ENGINE.md) — the planned "BUSCAR SEÑAL" flow, signal
 - [SIGNAL_ENGINE.md](SIGNAL_ENGINE.md) — the planned "BUSCAR SEÑAL" flow, signal
   format, and confidence-reporting rules

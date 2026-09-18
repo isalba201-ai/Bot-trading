@@ -499,6 +499,21 @@ reach the out-of-sample TEST split, rejected there), a no-trade-filter
 finding, the Pocket Option OTC data-sourcing investigation, a tiered
 literature review, and a hypothesis menu for future work.
 
+**Important correction (see [BINARY_OPTIONS_REFRAME_AUDIT.md](BINARY_OPTIONS_REFRAME_AUDIT.md)
+and [EXPIRY_UNIVERSE_AUDIT.md](EXPIRY_UNIVERSE_AUDIT.md))**: the
+"slippage is the dominant destroyer" and "prioritize short expiries"
+statements above were both later retracted — slippage has no analog in a
+binary option's payoff, and no expiry duration was ever a project
+requirement. `research/candidacy.py` was corrected to a delay-only
+execution model. **The practical conclusion of all of this — see
+[BINARY_OPTIONS_BACKTEST_REPORT.md](BINARY_OPTIONS_BACKTEST_REPORT.md)
+(Step 9)** — is a full binary-options backtest of every H1-H20 strategy
+and every discovered condition under the corrected model: 0/608 H1-H20
+evaluations accepted, and exactly 1 discovered session-bias condition
+(EUR_USD 15m, hour 05-06 UTC, CALL) mechanically cleared all four gates
+but is fragile (payout crossover at 83.25%, TEST n=40) and reported as
+such rather than as validated evidence.
+
 ## Explicitly forbidden language
 
 Never describe any hypothesis or strategy, at any status, as: "infallible",
