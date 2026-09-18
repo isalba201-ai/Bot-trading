@@ -15,6 +15,18 @@ menu for anything not yet tried. Full design:
 **The "BUSCAR SEÑAL" UI is still not built, on purpose** — this document's
 own final answer (Section 14) explains why.
 
+**Important correction, made after this document was written — read
+[BINARY_OPTIONS_REFRAME_AUDIT.md](BINARY_OPTIONS_REFRAME_AUDIT.md)
+alongside this one.** Section 3's "slippage is the dominant destroyer"
+finding was found to be an artifact of applying a spot-Forex-broker
+bid/ask-crossing cost model (`slippage_pct` in `backtest/simulator.py`)
+to a target that doesn't have that cost structure — a binary option's
+payoff has no fill-price/spread concept. That specific attribution is
+retracted; the delay-only findings and everything else in this document
+(the audit numbers, the CALL/PUT symmetry, the TEST-gate case study, the
+literature review, the OTC investigation) stand. See the linked document
+for the full correction and the reframed methodology going forward.
+
 ---
 
 ## 1. Audit of Step 7: what exactly was tested

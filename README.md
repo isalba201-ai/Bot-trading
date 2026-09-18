@@ -293,6 +293,11 @@ pytest
   two literature-grounded re-runs, a no-trade-filter finding, the Pocket
   Option OTC data-sourcing investigation, a tiered literature review, and
   a hypothesis menu for future work
+- [BINARY_OPTIONS_REFRAME_AUDIT.md](BINARY_OPTIONS_REFRAME_AUDIT.md) —
+  correction: this project's real target is Pocket Option binary-options
+  CALL/PUT signals, not a Forex trading strategy — audits Step 7/8 for
+  compatibility, retracts a Forex-broker execution-cost assumption that
+  didn't belong, and defines the corrected methodology for the next steps
 - [SIGNAL_ENGINE.md](SIGNAL_ENGINE.md) — the planned "BUSCAR SEÑAL" flow, signal
   format, and confidence-reporting rules
 - [RISK_MANAGEMENT.md](RISK_MANAGEMENT.md) — no execution, no martingale,
