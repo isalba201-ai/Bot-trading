@@ -53,6 +53,14 @@ class Condition:
             mask &= (df[feature] > low) & (df[feature] <= high)
         return mask
 
+    def matches_row(self, features: dict) -> bool:
+        """Scalar version of ``matches``, for a single point-in-time
+        feature dict — used by ``research.condition_strategy.
+        ConditionStrategy.decide`` to run a discovered condition through
+        the Phase 4 backtest engine unchanged.
+        """
+        return all(low < features[feature] <= high for feature, low, high in self.parts)
+
     def label(self) -> str:
         return " AND ".join(f"{f}∈({lo:.4g},{hi:.4g}]" for f, lo, hi in self.parts)
 
