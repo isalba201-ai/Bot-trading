@@ -282,3 +282,53 @@ class Signal(Base):
     __table_args__ = (
         Index("ix_signal_lookup", "asset", "timeframe", "generated_at"),
     )
+
+
+class ConditionTrial(Base):
+    """Every 2-3 way condition combination tried by
+    ``research.discovery``'s systematic interaction search, logged BEFORE
+    its corrected significance is known — the fine-grained extension of
+    ``Hypothesis``'s multiple-testing discipline down to individual
+    bin/threshold combinations (see the project's pivot to statistical
+    discovery, STRATEGIES.md). ``run_id`` groups every trial from one
+    ``run_discovery()`` call so the total number tried in that run is
+    always auditable, and ``fdr_significant`` is only ever set after
+    Benjamini-Hochberg correction has been applied across the WHOLE run —
+    never per-trial in isolation, which is exactly the data-mining trap
+    this table exists to prevent.
+    """
+
+    __tablename__ = "condition_trials"
+
+    id = Column(Integer, primary_key=True)
+
+    run_id = Column(String(64), nullable=False)
+    asset = Column(String(32), nullable=False)
+    timeframe = Column(String(8), nullable=False)
+    feature_set_version = Column(String(32), nullable=False)
+    target_col = Column(String(32), nullable=False)  # e.g. "call_wins_1"
+    # Null = not regime-scoped (the trial ran over the whole TRAIN split).
+    regime = Column(String(64), nullable=True)
+
+    # JSON list of {"feature": str, "low": float, "high": float}, ANDed together.
+    condition_json = Column(Text, nullable=False)
+    n_features_combined = Column(Integer, nullable=False)  # 2 or 3
+
+    sample_size = Column(Integer, nullable=False)
+    wins = Column(Integer, nullable=False)
+    win_rate = Column(Float, nullable=True)
+    win_rate_ci_low = Column(Float, nullable=True)
+    win_rate_ci_high = Column(Float, nullable=True)
+    # Null when sample_size was below the run's min_sample_size -- an
+    # underpowered trial is excluded from significance testing entirely,
+    # never treated as "not significant" (which would imply it was tested).
+    p_value = Column(Float, nullable=True)
+
+    fdr_significant = Column(Boolean, nullable=True)
+
+    tried_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)
+
+    __table_args__ = (
+        Index("ix_condition_trial_run", "run_id"),
+        Index("ix_condition_trial_lookup", "asset", "timeframe", "target_col"),
+    )

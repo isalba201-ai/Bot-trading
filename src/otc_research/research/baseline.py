@@ -14,6 +14,7 @@ no opinion about which split it's given, same separation of concerns as
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Sequence
 
@@ -32,7 +33,7 @@ class WinRateStat:
     ci_high: float | None
 
 
-def _win_rate_stat(target: pd.Series) -> WinRateStat:
+def win_rate_stat(target: pd.Series) -> WinRateStat:
     """``target`` is a 0/1/NaN series (NaN = unresolved/tie, already
     excluded — see dataset.py). Never fabricates a win rate/CI for n=0.
     """
@@ -51,7 +52,7 @@ def unconditional_baseline(df: pd.DataFrame, target_col: str) -> WinRateStat:
     """Stage 1: P(target_col wins) with no conditioning at all — the
     sanity check everything else is compared against.
     """
-    return _win_rate_stat(df[target_col])
+    return win_rate_stat(df[target_col])
 
 
 @dataclass(frozen=True)
@@ -82,7 +83,7 @@ def conditional_by_bins(
 
     results = []
     for interval, group in valid.groupby(binned, observed=True):
-        stat = _win_rate_stat(group[target_col])
+        stat = win_rate_stat(group[target_col])
         results.append(
             BinStat(
                 feature=feature_col,
@@ -112,7 +113,7 @@ def conditional_by_category(
     results = []
     for category, group in valid.groupby(category_col, observed=True):
         results.append(
-            CategoryStat(feature=category_col, category=str(category), stat=_win_rate_stat(group[target_col]))
+            CategoryStat(feature=category_col, category=str(category), stat=win_rate_stat(group[target_col]))
         )
     return results
 
@@ -134,6 +135,33 @@ def regime_conditional_bins(
     for regime, group in valid.groupby(regime_col, observed=True):
         result[str(regime)] = conditional_by_bins(group, feature_col, target_col, n_bins=n_bins)
     return result
+
+
+def two_sided_binomial_p_value(wins: int, n: int, null_p: float = 0.5) -> float | None:
+    """Two-sided p-value for H0: true win rate == ``null_p``, via the
+    normal approximation to the binomial (score-test form: standard error
+    computed under the null, not the plug-in sample proportion — the more
+    accurate choice for a proportion test, same reasoning that motivates
+    Wilson over the naive interval). Deliberately dependency-free (no
+    scipy) — this project only adds a dependency when a stage genuinely
+    needs it (see research/models.py's scikit-learn for stage 8).
+
+    Used by discovery.py to rank/threshold condition trials before
+    Benjamini-Hochberg FDR correction. Returns None for n == 0 — never a
+    fabricated p-value.
+    """
+    if n <= 0:
+        return None
+    if not 0.0 < null_p < 1.0:
+        raise ValueError("null_p must be between 0 and 1")
+    p_hat = wins / n
+    standard_error = math.sqrt(null_p * (1.0 - null_p) / n)
+    if standard_error == 0.0:
+        return None
+    z = (p_hat - null_p) / standard_error
+    cdf = 0.5 * (1.0 + math.erf(abs(z) / math.sqrt(2.0)))
+    p_value = 2.0 * (1.0 - cdf)
+    return min(1.0, max(0.0, p_value))
 
 
 def bootstrap_mean_ci(
