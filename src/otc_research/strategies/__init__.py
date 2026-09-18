@@ -45,6 +45,7 @@ from otc_research.strategies.h19_trend_pullback import H19TrendPullback
 from otc_research.strategies.h20_breakout_volatility_confirmed import (
     H20BreakoutVolatilityConfirmed,
 )
+from otc_research.strategies.h21_cci_rsi_macd_reversal import H21CciRsiMacdBearishReversal
 
 #: Hypothesis code -> strategy class. H9 is deliberately excluded: it
 #: needs an (hour, direction) pair to test one specific bias hypothesis
@@ -70,6 +71,7 @@ BASELINE_STRATEGIES = {
     "H18": H18CciEngulfingConfirmed,
     "H19": H19TrendPullback,
     "H20": H20BreakoutVolatilityConfirmed,
+    "H21": H21CciRsiMacdBearishReversal,
 }
 
 __all__ = [
@@ -94,4 +96,5 @@ __all__ = [
     "H18CciEngulfingConfirmed",
     "H19TrendPullback",
     "H20BreakoutVolatilityConfirmed",
+    "H21CciRsiMacdBearishReversal",
 ]

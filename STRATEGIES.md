@@ -42,6 +42,23 @@ robustness testing (Phases 6-8), none of which exist yet either.
 | H18 | CCI extreme CONFIRMED by an engulfing candle in the same direction → reversion | registered |
 | H19 | Pullback entry: EMA-slope trend direction + RSI dipping into a shallow (not extreme) pullback zone → continuation with the trend | registered |
 | H20 | Donchian breakout CONFIRMED by volatility expansion (ATR expansion ratio) → continuation | registered |
+| H21 | CCI(20) AND RSI(14) both overbought, CONFIRMED by a bearish MACD histogram bar AND a bearish (red) candle on the same candle → PUT reversal (no CALL mirror requested/added) | registered |
+
+**H21** was requested explicitly by the user (2026-09-18), not derived from
+ablating an earlier hypothesis, with every parameter specified as each
+indicator's own conventional default: CCI(20) and RSI(14) (the same
+defaults H12/H7 already use), plus a MACD(12,26,9) confirmation reusing
+the already-computed `macd_histogram` feature — a MACD histogram bar
+below zero is what "the MACD shows a red bar" means on every charting
+platform that colors histogram bars by sign, which is how this project
+reads the user's description of the confirmation. PUT-only by design
+(the user described only the overbought/bearish case; no oversold/
+bullish mirror was requested, so none was added — see
+`strategies/h21_cci_rsi_macd_reversal.py`'s docstring for the full,
+literal mapping from the user's description to each of the four ANDed
+conditions). Backtested at both user-requested expiries (h=2 and h=4
+candles after the signal) — see
+[H21_CCI_RSI_MACD_BACKTEST.md](H21_CCI_RSI_MACD_BACKTEST.md).
 
 H16-H20 were requested explicitly: combine multiple indicators from
 different families rather than testing any one alone, on binary-options-
@@ -156,6 +173,7 @@ technical-analysis concepts.
 | H18 | `strategies/h18_cci_engulfing_confirmed.py::H18CciEngulfingConfirmed` | `cci_20` extreme AND `engulfing_signal` agrees in direction |
 | H19 | `strategies/h19_trend_pullback.py::H19TrendPullback` | `ema_slope_12_3` established AND `rsi_14` in a shallow pullback band |
 | H20 | `strategies/h20_breakout_volatility_confirmed.py::H20BreakoutVolatilityConfirmed` | Donchian breakout AND `atr_expansion_ratio` clears a threshold |
+| H21 | `strategies/h21_cci_rsi_macd_reversal.py::H21CciRsiMacdBearishReversal` | `cci_20>=100` AND `rsi_14>=70` AND `macd_histogram<0` AND `close<open`, all on the same candle → PUT |
 
 Every threshold above is a constructor parameter, not a hardcoded
 constant, specifically so Phase 6's robustness/sensitivity sweeps can

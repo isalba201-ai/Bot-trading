@@ -318,6 +318,13 @@ pytest
   accepted, 1 discovered session-bias condition mechanically cleared all
   four gates but is fragile and payout-dependent (crossover payout
   83.25%) — reported honestly, not treated as validated
+- [H21_CCI_RSI_MACD_BACKTEST.md](H21_CCI_RSI_MACD_BACKTEST.md) — a
+  user-requested strategy (CCI(20)+RSI(14) overbought confirmed by a
+  bearish MACD histogram + red candle → PUT) backtested at h=2/h=4 across
+  all 8 real datasets. Finding: the signal fired 5 times total across
+  ~40,000 real candles — too rare to judge reliability at all, with a
+  data-grounded explanation of exactly which condition causes the
+  near-zero frequency and concrete (untested) next steps
 - [SIGNAL_ENGINE.md](SIGNAL_ENGINE.md) — the planned "BUSCAR SEÑAL" flow, signal
 - [SIGNAL_ENGINE.md](SIGNAL_ENGINE.md) — the planned "BUSCAR SEÑAL" flow, signal
   format, and confidence-reporting rules

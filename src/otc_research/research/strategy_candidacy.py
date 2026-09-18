@@ -50,6 +50,7 @@ from otc_research.strategies import (
     H18CciEngulfingConfirmed,
     H19TrendPullback,
     H20BreakoutVolatilityConfirmed,
+    H21CciRsiMacdBearishReversal,
 )
 
 #: Default edge-perturbation grid, identical to
@@ -260,6 +261,16 @@ def build_candidacy_inputs(
         ]
         return _build(code, H20BreakoutVolatilityConfirmed, ez, grid)
 
+    if code == "H21":
+        base = H21CciRsiMacdBearishReversal()
+        grid = []
+        for pct in pcts:
+            grid.append({
+                "cci_threshold": _mult(base.cci_threshold, pct, min_value=1.0),
+                "rsi_threshold": min(99.0, max(51.0, _mult(base.rsi_threshold, pct))),
+            })
+        return _build(code, H21CciRsiMacdBearishReversal, ez, grid)
+
     raise ValueError(f"no candidacy-input builder for code {code!r} (H9 is handled separately)")
 
 
@@ -267,5 +278,5 @@ def build_candidacy_inputs(
 #: matching ``strategies.BASELINE_STRATEGIES``.
 SUPPORTED_CODES: tuple[str, ...] = (
     "H1", "H2", "H3", "H4", "H5", "H6", "H7", "H8", "H10", "H11", "H12",
-    "H13", "H14", "H15", "H16", "H17", "H18", "H19", "H20",
+    "H13", "H14", "H15", "H16", "H17", "H18", "H19", "H20", "H21",
 )

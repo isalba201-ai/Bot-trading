@@ -30,13 +30,14 @@ from otc_research.strategies.h19_trend_pullback import H19TrendPullback
 from otc_research.strategies.h20_breakout_volatility_confirmed import (
     H20BreakoutVolatilityConfirmed,
 )
+from otc_research.strategies.h21_cci_rsi_macd_reversal import H21CciRsiMacdBearishReversal
 
 
-def test_baseline_registry_covers_nineteen_zero_arg_strategies():
+def test_baseline_registry_covers_twenty_zero_arg_strategies():
     assert set(BASELINE_STRATEGIES) == {
         "H1", "H2", "H3", "H4", "H5", "H6", "H7", "H8", "H10",
         "H11", "H12", "H13", "H14", "H15",
-        "H16", "H17", "H18", "H19", "H20",
+        "H16", "H17", "H18", "H19", "H20", "H21",
     }
     for code, cls in BASELINE_STRATEGIES.items():
         strategy = cls()
@@ -274,3 +275,32 @@ def test_h20_requires_breakout_and_volatility_expansion():
     assert s.decide({**base, "close": 1.20, "atr_expansion_ratio": 1.0}) is None
     # volatility expanding but no breakout -> no signal
     assert s.decide({**base, "close": 1.10, "atr_expansion_ratio": 1.5}) is None
+
+
+# --- H21 ------------------------------------------------------------------
+
+
+def test_h21_requires_cci_and_rsi_overbought_plus_bearish_macd_and_red_candle():
+    s = H21CciRsiMacdBearishReversal(cci_threshold=100.0, rsi_threshold=70.0)
+    all_bearish = {
+        "cci_20": 120.0, "rsi_14": 75.0, "macd_histogram": -0.001, "open": 1.1010, "close": 1.1000,
+    }
+    assert s.decide(all_bearish) == "PUT"
+
+    # CCI not yet overbought -> no signal
+    assert s.decide({**all_bearish, "cci_20": 50.0}) is None
+    # RSI not yet overbought -> no signal
+    assert s.decide({**all_bearish, "rsi_14": 60.0}) is None
+    # MACD histogram still positive ("green", not confirming) -> no signal
+    assert s.decide({**all_bearish, "macd_histogram": 0.001}) is None
+    # candle itself is bullish (close >= open), not "red" -> no signal
+    assert s.decide({**all_bearish, "open": 1.1000, "close": 1.1010}) is None
+    # PUT-only by design -- no oversold/bullish mirror case exists
+    assert s.decide({
+        "cci_20": -120.0, "rsi_14": 25.0, "macd_histogram": 0.001, "open": 1.1000, "close": 1.1010,
+    }) is None
+
+
+def test_h21_rejects_invalid_rsi_threshold():
+    with pytest.raises(ValueError, match="rsi_threshold"):
+        H21CciRsiMacdBearishReversal(rsi_threshold=40.0)
