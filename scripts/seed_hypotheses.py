@@ -41,6 +41,16 @@ INITIAL_HYPOTHESES = [
      "A bullish/bearish engulfing candle predicts a reversal."),
     ("H15", "Inside-bar breakout continuation",
      "Breakout of an inside-bar (mother bar) range predicts continuation."),
+    ("H16", "MACD cross confirmed by RSI regime",
+     "MACD signal-line cross confirmed by RSI being on the same side of 50 predicts continuation."),
+    ("H17", "Bollinger extreme confirmed by RCI extreme",
+     "Bollinger Band extreme confirmed by an RCI extreme (two independent oscillators agreeing) predicts reversion."),
+    ("H18", "CCI extreme confirmed by engulfing candle",
+     "CCI extreme confirmed by an engulfing candle in the same direction predicts reversion."),
+    ("H19", "Trend + shallow RSI pullback",
+     "An established EMA-slope trend with a shallow (non-extreme) RSI pullback predicts continuation with the trend."),
+    ("H20", "Donchian breakout confirmed by volatility expansion",
+     "A Donchian channel breakout confirmed by ATR expansion predicts continuation."),
 ]
 
 

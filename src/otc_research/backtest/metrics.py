@@ -43,6 +43,55 @@ def wilson_confidence_interval(wins: int, n: int, z: float = Z_95) -> tuple[floa
     return max(0.0, low), min(1.0, high)
 
 
+def break_even_win_rate(payout: float) -> float:
+    """Minimum win rate needed to break even on a FIXED-PAYOUT instrument
+    (binary options, not plain spot Forex) — BACKTESTING.md's
+    ``break_even_win_rate = 1 / (1 + payout)``. ``payout`` is the
+    fractional profit on a win (e.g. ``0.85`` for a broker paying 85% on
+    a win); a loss is assumed to forfeit the full stake, the standard
+    binary options structure. This is NOT 50% — a typical ~0.80-0.90
+    payout means the real bar is roughly 53-56%, not 50%, which is why
+    every "does it clear 50%?" read elsewhere in this codebase is a
+    necessary but not sufficient condition for a binary-options trader
+    specifically.
+    """
+    if payout <= 0:
+        raise ValueError("payout must be positive")
+    return 1.0 / (1.0 + payout)
+
+
+def payout_adjusted_expectancy(win_rate: float, payout: float) -> float:
+    """Expected return per trade as a fraction of stake, for a
+    fixed-payout instrument — BACKTESTING.md's
+    ``expectancy_per_trade = win_rate * payout - loss_rate``. Positive
+    means the strategy clears THIS payout; negative means it doesn't.
+    Linear in ``win_rate``, so it can be applied directly to Wilson CI
+    endpoints too (see ``payout_adjusted_expectancy_ci``) without
+    distorting the interval.
+    """
+    if not 0.0 <= win_rate <= 1.0:
+        raise ValueError("win_rate must be between 0 and 1")
+    if payout <= 0:
+        raise ValueError("payout must be positive")
+    loss_rate = 1.0 - win_rate
+    return win_rate * payout - loss_rate
+
+
+def payout_adjusted_expectancy_ci(
+    win_rate_ci_low: float, win_rate_ci_high: float, payout: float
+) -> tuple[float, float]:
+    """Maps a win-rate confidence interval through the same linear payout
+    formula. Because the transform is linear and increasing in
+    ``win_rate``, the endpoints map directly — the low end of the win-rate
+    CI maps to the low end of the expectancy CI, and likewise the high
+    end, with no distortion.
+    """
+    return (
+        payout_adjusted_expectancy(win_rate_ci_low, payout),
+        payout_adjusted_expectancy(win_rate_ci_high, payout),
+    )
+
+
 @dataclass(frozen=True)
 class TradeStats:
     sample_size: int  # resolved trades only (VOID excluded — see below)

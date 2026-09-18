@@ -37,6 +37,46 @@ robustness testing (Phases 6-8), none of which exist yet either.
 | H13 | RCI (rank correlation index) extreme (beyond ±80) → reversion | registered |
 | H14 | Bullish/bearish engulfing candle → reversal | registered |
 | H15 | Breakout of an inside-bar ("mother bar") range → continuation | registered |
+| H16 | MACD cross CONFIRMED by RSI regime (RSI on the same side of 50 as the cross) → continuation | registered |
+| H17 | Bollinger Band extreme CONFIRMED by RCI extreme (two independent oscillators agreeing on exhaustion) → reversion | registered |
+| H18 | CCI extreme CONFIRMED by an engulfing candle in the same direction → reversion | registered |
+| H19 | Pullback entry: EMA-slope trend direction + RSI dipping into a shallow (not extreme) pullback zone → continuation with the trend | registered |
+| H20 | Donchian breakout CONFIRMED by volatility expansion (ATR expansion ratio) → continuation | registered |
+
+H16-H20 were requested explicitly: combine multiple indicators from
+different families rather than testing any one alone, on binary-options-
+realistic short timeframes (1-5 minutes, not 1h). Each stacks two
+already-registered single-indicator mechanisms as an AND condition
+(never invented from scratch) — the rationale in each case is
+"single indicator X showed a coin-flip result; does requiring a second,
+mechanistically different indicator to agree filter out the noise and
+leave a real signal?":
+
+- **H16** stacks H11 (MACD cross) with an RSI regime filter — the classic
+  "don't fade an already-exhausted move" confirmation: only take a
+  bullish MACD cross when RSI is already on the bullish side of 50 (not
+  overbought, which would suggest exhaustion, and not still bearish,
+  which would suggest the cross is premature).
+- **H17** stacks H4 (Bollinger extreme) with H13 (RCI extreme) — two
+  mechanistically distinct exhaustion signals (a volatility-band
+  measure and a rank-correlation measure) agreeing, rather than either
+  alone.
+- **H18** stacks H12 (CCI extreme) with H14 (engulfing) — an oscillator
+  extreme confirmed by actual price-action reversal behavior, the same
+  logic as H7 (RSI + streak) but with a different oscillator/pattern
+  pair.
+- **H19** is a distinct mechanism from H3/H10: not "is momentum currently
+  strong", but "is there an established trend (EMA slope) that has just
+  had a shallow, non-extreme RSI dip" — the "buy the pullback, not the
+  extreme" entry style common in real discretionary trading, which none
+  of H1-H15 tests.
+- **H20** stacks H5 (Donchian breakout) with H8's volatility-expansion
+  measure — only trust a breakout that coincides with expanding
+  volatility (a standard real-trading filter against false/low-
+  conviction breakouts).
+
+No new features were needed for H16-H20 — every one is built entirely
+from `feature_set_version = "v3"` columns already computed for H1-H15.
 
 H11-H15 were added after H1-H10 had already been run against real data
 and shown no robust edge (see "What real data has actually shown so
@@ -111,6 +151,11 @@ technical-analysis concepts.
 | H13 | `strategies/h13_rci_extreme.py::H13RciExtremeReversion` | `rci_9` clears a threshold (default ±80) → fade |
 | H14 | `strategies/h14_engulfing.py::H14EngulfingReversal` | `engulfing_signal` fires (+1/-1) |
 | H15 | `strategies/h15_inside_bar_breakout.py::H15InsideBarBreakout` | `inside_bar_breakout_signal` fires (+1/-1) |
+| H16 | `strategies/h16_macd_rsi_confirmed.py::H16MacdRsiConfirmed` | `macd_cross_signal` fires AND `rsi_14` is on the same side of 50 |
+| H17 | `strategies/h17_bollinger_rci_confirmed.py::H17BollingerRciConfirmed` | `bb_pct_b_20` AND `rci_9` both clear their extreme thresholds in the same direction |
+| H18 | `strategies/h18_cci_engulfing_confirmed.py::H18CciEngulfingConfirmed` | `cci_20` extreme AND `engulfing_signal` agrees in direction |
+| H19 | `strategies/h19_trend_pullback.py::H19TrendPullback` | `ema_slope_12_3` established AND `rsi_14` in a shallow pullback band |
+| H20 | `strategies/h20_breakout_volatility_confirmed.py::H20BreakoutVolatilityConfirmed` | Donchian breakout AND `atr_expansion_ratio` clears a threshold |
 
 Every threshold above is a constructor parameter, not a hardcoded
 constant, specifically so Phase 6's robustness/sensitivity sweeps can
@@ -224,6 +269,62 @@ exactly what "there is no easily-found edge in liquid spot Forex at
 1-hour granularity with these tools" looks like when tested honestly,
 and is itself a legitimate research conclusion — see BACKTESTING.md's
 edge classification, none of which any hypothesis here has earned.
+
+### H16-H20 (combined indicators, binary-options timeframes: 1m and 5m)
+
+Requested explicitly: combine multiple indicators (never just one), and
+use short timeframes (1-5 minutes) matching real binary-options contract
+durations rather than the 1h data used for H1-H15. Run on real EUR/USD
+(1-minute candles, 60s and 300s expiry), EUR/USD, GBP/USD, and USD/JPY
+(5-minute candles, 300s expiry) — 5 runs × 5 hypotheses, train split,
+optimistic scenario:
+
+- **H17, H18, H19, H20: no credible edge anywhere.** H19 didn't even
+  fire on 3 of 5 series (its EMA-slope threshold is too strict for
+  short-timeframe price moves). H18's joint CCI+engulfing condition is
+  rare enough (n=5-24 per run) that no run had a trustworthy sample.
+  H17 and H20 hovered at or below 50% on every run with no consistent
+  direction.
+- **H16 (MACD+RSI) looked like a hit at first**: 57.1% (CI[0.502,0.637],
+  n=205) on 1-minute EUR/USD at a 60-second expiry — the single strongest
+  optimistic-scenario result of the entire investigation, and the exact
+  kind of number a less careful analysis would report as "found one."
+  It **did not replicate**: on EUR/USD's own validation split it drops
+  to 55.4% with a CI of [0.441, 0.662] — no longer clearing 50% — and at
+  every other timeframe/pair tested (EUR/USD 1m at a 300s expiry, and
+  5-minute EUR/USD, GBP/USD, USD/JPY) it sits at 36-55%, including three
+  results *significantly below* 50%. A result that reverses sign across
+  nearby timeframes on the same underlying mechanism is the textbook
+  OVERFITTED/FRAGILE pattern BACKTESTING.md defines, not a validated edge.
+
+**The most important finding for binary options specifically is not
+about any one hypothesis — it's about timeframe itself.** Going shorter
+did not make execution costs matter less; it made them dominate more
+completely. At 1-hour resolution (H1-H15), the realistic-execution
+scenario typically cut win rates by 15-25 percentage points. At 1- and
+5-minute resolution (H16-H20), it typically cut them by 30-50 points —
+several runs above collapsed from 50-60% optimistic to under 15%
+realistic, and to single digits or zero under the pessimistic scenario.
+This makes sense mechanically: expected price movement shrinks roughly
+with the square root of time, but fixed costs (spread, latency, slippage)
+don't shrink proportionally, so they eat a larger fraction of the
+available move the shorter the timeframe gets.
+
+**Binary options add a second, independent problem on top of that: the
+break-even bar itself is higher than 50%.** With a typical binary-options
+payout of 0.80-0.90, break-even is 52.6%-55.6%, not 50% (see
+BACKTESTING.md's payout math). Even H16's best, non-replicating,
+optimistic-only number (57.1%) only barely cleared that stricter bar —
+and that was before any execution cost was applied at all. Once realistic
+execution is included, every configuration tested here, at every
+timeframe from 5 minutes to 1 hour, falls far short of any realistic
+binary-options break-even.
+
+**Combined verdict for H16-H20, and for the timeframe question that
+motivated them: no combination of the indicators available in this
+codebase has shown a credible, replicated edge at binary-options-length
+expiries, and the shorter the expiry, the worse the execution-cost
+problem gets, not better.**
 
 ## Explicitly forbidden language
 

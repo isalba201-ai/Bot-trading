@@ -38,6 +38,13 @@ from otc_research.strategies.h12_cci_extreme import H12CciExtremeReversion
 from otc_research.strategies.h13_rci_extreme import H13RciExtremeReversion
 from otc_research.strategies.h14_engulfing import H14EngulfingReversal
 from otc_research.strategies.h15_inside_bar_breakout import H15InsideBarBreakout
+from otc_research.strategies.h16_macd_rsi_confirmed import H16MacdRsiConfirmed
+from otc_research.strategies.h17_bollinger_rci_confirmed import H17BollingerRciConfirmed
+from otc_research.strategies.h18_cci_engulfing_confirmed import H18CciEngulfingConfirmed
+from otc_research.strategies.h19_trend_pullback import H19TrendPullback
+from otc_research.strategies.h20_breakout_volatility_confirmed import (
+    H20BreakoutVolatilityConfirmed,
+)
 
 #: Hypothesis code -> strategy class. H9 is deliberately excluded: it
 #: needs an (hour, direction) pair to test one specific bias hypothesis
@@ -58,6 +65,11 @@ BASELINE_STRATEGIES = {
     "H13": H13RciExtremeReversion,
     "H14": H14EngulfingReversal,
     "H15": H15InsideBarBreakout,
+    "H16": H16MacdRsiConfirmed,
+    "H17": H17BollingerRciConfirmed,
+    "H18": H18CciEngulfingConfirmed,
+    "H19": H19TrendPullback,
+    "H20": H20BreakoutVolatilityConfirmed,
 }
 
 __all__ = [
@@ -77,4 +89,9 @@ __all__ = [
     "H13RciExtremeReversion",
     "H14EngulfingReversal",
     "H15InsideBarBreakout",
+    "H16MacdRsiConfirmed",
+    "H17BollingerRciConfirmed",
+    "H18CciEngulfingConfirmed",
+    "H19TrendPullback",
+    "H20BreakoutVolatilityConfirmed",
 ]

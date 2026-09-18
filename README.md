@@ -71,20 +71,26 @@ scenarios reporting Wilson-CI-grounded win rate/expectancy, the H1-H10
 baseline strategies themselves, a robustness/sensitivity sweep runner,
 and walk-forward analysis (mean/dispersion/worst-fold win rate across
 sliding time folds) (see [BACKTESTING.md](BACKTESTING.md) /
-[STRATEGIES.md](STRATEGIES.md)). **15 hypotheses total (H1-H15) have
-actually been run against real EUR/USD, GBP/USD, and USD/JPY data** (5m
-and 1h, via Twelve Data) — see STRATEGIES.md's "What real data has
+[STRATEGIES.md](STRATEGIES.md)). **20 hypotheses total (H1-H20) have
+actually been run against real EUR/USD, GBP/USD, and USD/JPY data**
+(1m/5m/1h, via Twelve Data) — see STRATEGIES.md's "What real data has
 actually shown so far" for the honest result: **no credible, replicated
 edge on any of them.** H4 looked promising at first; a robustness sweep
 and a 12-fold walk-forward showed it doesn't hold up across time periods
 or realistic execution costs. H11-H15 (MACD, CCI, RCI, engulfing,
-inside-bar breakout, added after a request to try more indicator
-families) turned up two border-line hits (CCI and RCI on GBP/USD) that
-did not replicate on that pair's own validation split — a clean
-demonstration of exactly the multiple-testing trap BACKTESTING.md warns
-about. Monte Carlo testing and the on-demand "BUSCAR SEÑAL" UI —
-everything the signal engine needs to show a non-fabricated confidence
-number — are **not built yet**.
+inside-bar breakout) turned up two border-line hits (CCI and RCI on
+GBP/USD) that did not replicate on that pair's own validation split — a
+clean demonstration of exactly the multiple-testing trap BACKTESTING.md
+warns about. **H16-H20 (combined multi-indicator strategies at 1- and
+5-minute, binary-options-length expiries) found the most important
+result of the whole investigation: going to shorter timeframes makes
+execution costs matter MORE, not less** — realistic-scenario win rates
+that erode by 15-25 points at 1h eroded by 30-50 points at 1-5m, and a
+typical binary-options payout (0.80-0.90) requires a 52.6%-55.6%
+break-even win rate in the first place, not 50% — see
+`backtest/metrics.py::break_even_win_rate`. Monte Carlo testing and the
+on-demand "BUSCAR SEÑAL" UI — everything the signal engine needs to show
+a non-fabricated confidence number — are **not built yet**.
 
 | Phase | Scope | Status |
 |---|---|---|

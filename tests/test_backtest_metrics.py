@@ -2,7 +2,13 @@ import math
 
 import pytest
 
-from otc_research.backtest.metrics import summarize_trades, wilson_confidence_interval
+from otc_research.backtest.metrics import (
+    break_even_win_rate,
+    payout_adjusted_expectancy,
+    payout_adjusted_expectancy_ci,
+    summarize_trades,
+    wilson_confidence_interval,
+)
 
 
 def test_wilson_ci_matches_known_reference_value():
@@ -64,3 +70,45 @@ def test_summarize_trades_all_void_yields_no_fabricated_numbers():
 def test_summarize_trades_rejects_mismatched_lengths():
     with pytest.raises(ValueError):
         summarize_trades(["WIN"], [1.0, 2.0])
+
+
+# --- binary-options payout math ------------------------------------------
+
+
+def test_break_even_win_rate_is_50_pct_only_at_100_pct_payout():
+    assert break_even_win_rate(1.0) == pytest.approx(0.5)
+
+
+def test_break_even_win_rate_above_50_pct_for_realistic_binary_options_payouts():
+    # A broker paying 85% on a win needs roughly a 54.1% win rate just to
+    # break even -- not 50%, which is the whole point of this function.
+    be = break_even_win_rate(0.85)
+    assert be == pytest.approx(1 / 1.85)
+    assert be > 0.5
+
+
+def test_break_even_win_rate_rejects_non_positive_payout():
+    with pytest.raises(ValueError):
+        break_even_win_rate(0.0)
+
+
+def test_payout_adjusted_expectancy_matches_break_even_definition():
+    payout = 0.85
+    be = break_even_win_rate(payout)
+    assert payout_adjusted_expectancy(be, payout) == pytest.approx(0.0, abs=1e-9)
+    assert payout_adjusted_expectancy(be + 0.05, payout) > 0
+    assert payout_adjusted_expectancy(be - 0.05, payout) < 0
+
+
+def test_payout_adjusted_expectancy_rejects_invalid_inputs():
+    with pytest.raises(ValueError):
+        payout_adjusted_expectancy(1.5, 0.85)
+    with pytest.raises(ValueError):
+        payout_adjusted_expectancy(0.6, 0.0)
+
+
+def test_payout_adjusted_expectancy_ci_maps_endpoints_directly():
+    low, high = payout_adjusted_expectancy_ci(0.45, 0.60, payout=0.85)
+    assert low == pytest.approx(payout_adjusted_expectancy(0.45, 0.85))
+    assert high == pytest.approx(payout_adjusted_expectancy(0.60, 0.85))
+    assert low < high

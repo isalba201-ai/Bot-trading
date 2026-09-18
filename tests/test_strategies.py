@@ -23,12 +23,20 @@ from otc_research.strategies.h12_cci_extreme import H12CciExtremeReversion
 from otc_research.strategies.h13_rci_extreme import H13RciExtremeReversion
 from otc_research.strategies.h14_engulfing import H14EngulfingReversal
 from otc_research.strategies.h15_inside_bar_breakout import H15InsideBarBreakout
+from otc_research.strategies.h16_macd_rsi_confirmed import H16MacdRsiConfirmed
+from otc_research.strategies.h17_bollinger_rci_confirmed import H17BollingerRciConfirmed
+from otc_research.strategies.h18_cci_engulfing_confirmed import H18CciEngulfingConfirmed
+from otc_research.strategies.h19_trend_pullback import H19TrendPullback
+from otc_research.strategies.h20_breakout_volatility_confirmed import (
+    H20BreakoutVolatilityConfirmed,
+)
 
 
-def test_baseline_registry_covers_fourteen_zero_arg_strategies():
+def test_baseline_registry_covers_nineteen_zero_arg_strategies():
     assert set(BASELINE_STRATEGIES) == {
         "H1", "H2", "H3", "H4", "H5", "H6", "H7", "H8", "H10",
         "H11", "H12", "H13", "H14", "H15",
+        "H16", "H17", "H18", "H19", "H20",
     }
     for code, cls in BASELINE_STRATEGIES.items():
         strategy = cls()
@@ -201,3 +209,68 @@ def test_h15_follows_inside_bar_breakout_direction():
     assert s.decide({"inside_bar_breakout_signal": 1.0}) == "CALL"
     assert s.decide({"inside_bar_breakout_signal": -1.0}) == "PUT"
     assert s.decide({"inside_bar_breakout_signal": 0.0}) is None
+
+
+# --- H16 ----------------------------------------------------------------
+
+
+def test_h16_requires_both_macd_cross_and_matching_rsi_regime():
+    s = H16MacdRsiConfirmed(rsi_midpoint=50.0, rsi_ceiling=80.0)
+    assert s.decide({"macd_cross_signal": 1.0, "rsi_14": 60.0}) == "CALL"
+    assert s.decide({"macd_cross_signal": -1.0, "rsi_14": 40.0}) == "PUT"
+    # cross fires but RSI disagrees (still bearish) -> no signal
+    assert s.decide({"macd_cross_signal": 1.0, "rsi_14": 30.0}) is None
+    # RSI already too extreme (exhaustion zone) -> no signal
+    assert s.decide({"macd_cross_signal": 1.0, "rsi_14": 90.0}) is None
+    assert s.decide({"macd_cross_signal": 0.0, "rsi_14": 60.0}) is None
+
+
+# --- H17 ----------------------------------------------------------------
+
+
+def test_h17_requires_both_bollinger_and_rci_extremes_to_agree():
+    s = H17BollingerRciConfirmed(rci_threshold=80.0)
+    assert s.decide({"bb_pct_b_20": 1.05, "rci_9": 90.0}) == "PUT"
+    assert s.decide({"bb_pct_b_20": -0.05, "rci_9": -90.0}) == "CALL"
+    # only one of the two clears its threshold -> no signal
+    assert s.decide({"bb_pct_b_20": 1.05, "rci_9": 20.0}) is None
+    assert s.decide({"bb_pct_b_20": 0.5, "rci_9": 90.0}) is None
+
+
+# --- H18 ----------------------------------------------------------------
+
+
+def test_h18_requires_cci_extreme_and_matching_engulfing_pattern():
+    s = H18CciEngulfingConfirmed(cci_threshold=100.0)
+    assert s.decide({"cci_20": 120.0, "engulfing_signal": -1.0}) == "PUT"
+    assert s.decide({"cci_20": -120.0, "engulfing_signal": 1.0}) == "CALL"
+    # engulfing disagrees with the reversion direction -> no signal
+    assert s.decide({"cci_20": 120.0, "engulfing_signal": 1.0}) is None
+    assert s.decide({"cci_20": 50.0, "engulfing_signal": -1.0}) is None
+
+
+# --- H19 ----------------------------------------------------------------
+
+
+def test_h19_requires_trend_and_shallow_not_extreme_pullback():
+    s = H19TrendPullback(slope_threshold=0.0001, pullback_low=35.0, pullback_high=50.0)
+    assert s.decide({"ema_slope_12_3": 0.001, "rsi_14": 40.0}) == "CALL"
+    assert s.decide({"ema_slope_12_3": -0.001, "rsi_14": 60.0}) == "PUT"
+    # trend present but RSI dip too deep (extreme, not shallow) -> no signal
+    assert s.decide({"ema_slope_12_3": 0.001, "rsi_14": 20.0}) is None
+    # RSI in range but no trend -> no signal
+    assert s.decide({"ema_slope_12_3": 0.0, "rsi_14": 40.0}) is None
+
+
+# --- H20 ----------------------------------------------------------------
+
+
+def test_h20_requires_breakout_and_volatility_expansion():
+    s = H20BreakoutVolatilityConfirmed(expansion_threshold=1.2)
+    base = {"donchian_high_20": 1.15, "donchian_low_20": 1.05}
+    assert s.decide({**base, "close": 1.20, "atr_expansion_ratio": 1.5}) == "CALL"
+    assert s.decide({**base, "close": 1.00, "atr_expansion_ratio": 1.5}) == "PUT"
+    # breakout happens but volatility isn't expanding -> no signal
+    assert s.decide({**base, "close": 1.20, "atr_expansion_ratio": 1.0}) is None
+    # volatility expanding but no breakout -> no signal
+    assert s.decide({**base, "close": 1.10, "atr_expansion_ratio": 1.5}) is None

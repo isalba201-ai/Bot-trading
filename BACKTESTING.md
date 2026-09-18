@@ -57,15 +57,23 @@ A strategy that only survives the optimistic scenario is classified
 A plain directional Forex signal has no fixed payout — expectancy for it is
 expressed in price terms (expected pips/return per trade), not win-rate vs.
 payout. The payout math below only applies if you choose to act on a signal
-by manually placing it as a fixed-payout instrument elsewhere; when it does
-apply, payout is never hardcoded. For any payout `p` (e.g. `0.92`):
+by manually placing it as a fixed-payout instrument elsewhere (e.g. a binary
+option) — when it does apply, payout is never hardcoded, and it changes
+what "an edge" even means: **50% win rate is not break-even for a
+fixed-payout instrument.** For any payout `p` (e.g. `0.92`), implemented in
+`backtest/metrics.py::break_even_win_rate` / `payout_adjusted_expectancy`:
 
 ```
 break_even_win_rate = 1 / (1 + p)
 expectancy_per_trade = win_rate * p - loss_rate
 ```
 
-(`loss_rate = 1 - win_rate` for a binary win/loss outcome with no ties.)
+(`loss_rate = 1 - win_rate` for a binary win/loss outcome with no ties.) A
+typical binary-options payout of 0.80-0.90 puts break-even at roughly
+52.6%-55.6%, not 50% — every "does this clear 50%?" read elsewhere in this
+codebase is a necessary but not sufficient condition once you're actually
+trading a fixed-payout instrument; see STRATEGIES.md's H16-H20 for why this
+matters in practice.
 Expectancy is computed per strategy, per asset, per hour, per session, and
 per market regime — a strategy with a high win rate but negative expectancy
 after payout is **NOT PROFITABLE**, full stop.
