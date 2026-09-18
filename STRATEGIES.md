@@ -141,6 +141,32 @@ realistic-scenario walk-forward result (0/12 folds) is the most decisive
 finding yet: under costs a real trader would actually pay, H4 has not
 shown an edge in any two-week stretch of the ~7 months tested.
 
+### Cross-pair check (GBP/USD, USD/JPY) and a full H9 scan
+
+Two further exploratory checks, both on real Twelve Data 1h candles,
+train split:
+
+- **H4 across three pairs**: the optimistic-scenario tendency above 50%
+  shows up on all three (EUR/USD 56.9%, GBP/USD 58.0%, USD/JPY 54.3%,
+  all n>340) — directionally consistent, which sounds encouraging. But
+  it does **not** replicate cleanly on each pair's own validation split
+  (GBP/USD drops to 51.2%; USD/JPY holds better at 59.2%), and the
+  realistic-execution scenario erases or reverses it on every pair
+  (GBP/USD 50.0%, USD/JPY 41.2%). Read together with the Phase 6/7
+  results above: this looks like a real, mild, structural tendency in
+  how these pairs behave around Bollinger-band extremes intraday — not
+  an exploitable edge once real execution costs are priced in.
+- **H9, done properly this time**: rather than guess an hour, all 24 UTC
+  hours × both directions (48 configs) were run against real EUR/USD/1h.
+  3 of 48 individually cleared a naive 95% confidence interval — almost
+  exactly the ~2.4 false positives that pure chance predicts from 48
+  comparisons at 95% confidence, and **0 of 48** cleared a
+  Bonferroni-adjusted interval that actually accounts for testing 48
+  hypotheses at once. This is the multiple-testing section above,
+  demonstrated rather than just asserted: naive per-config significance
+  testing on a wide scan manufactures "signals" that a correction for
+  the number of comparisons makes disappear. **No hour-of-day bias found.**
+
 ## Explicitly forbidden language
 
 Never describe any hypothesis or strategy, at any status, as: "infallible",
