@@ -3,11 +3,16 @@ import datetime as dt
 import numpy as np
 import pytest
 
+from otc_research.backtest.execution import delay_only_scenario
 from otc_research.backtest.walkforward import generate_folds
 from otc_research.config import BacktestConfig, ExecutionScenarioConfig
 from otc_research.db.models import BacktestRun, Candle
 from otc_research.features.pipeline import compute_and_store
-from otc_research.research.candidacy import CandidacyThresholds, evaluate_candidacy
+from otc_research.research.candidacy import (
+    DEFAULT_ENTRY_DELAY_CANDLES,
+    CandidacyThresholds,
+    evaluate_candidacy,
+)
 from otc_research.research.discovery import Condition
 
 ASSET = "TEST_FX"
@@ -267,3 +272,75 @@ def test_evaluate_candidacy_rejects_at_test_gate_when_edge_does_not_replicate_ou
     assert verdict.test_sample_size is not None and verdict.test_sample_size > 0
     # TEST was touched exactly once even though it failed
     assert session.query(BacktestRun).filter_by(split="test").count() == 1
+
+
+# --- binary-options execution-model correction (BINARY_OPTIONS_REFRAME_AUDIT.md) --
+
+
+def test_evaluate_candidacy_default_scenario_ignores_slippage_config(momentum_session):
+    # a binary option has no fill-price/spread concept, so the default
+    # scenario must not be affected by backtest_config.realistic's
+    # slippage_pct at all -- proven by cranking it up absurdly high and
+    # confirming the TRAIN margin is unaffected.
+    session, start, feature_set_version = momentum_session
+    poisoned_config = BacktestConfig(
+        train_fraction=0.6,
+        validation_fraction=0.2,
+        realistic=ExecutionScenarioConfig(
+            entry_delay_candles=1, signal_drop_probability=0.0, slippage_pct=50.0
+        ),
+        pessimistic=ExecutionScenarioConfig(
+            entry_delay_candles=2, signal_drop_probability=0.0, slippage_pct=90.0
+        ),
+    )
+    verdict = evaluate_candidacy(
+        session, _momentum_condition(), "CALL", 60, ASSET, TIMEFRAME, poisoned_config,
+        feature_set_version=feature_set_version, payout=0.85,
+        walk_forward_folds=_train_val_folds(start), label="poisoned_config_test",
+    )
+    assert verdict.train_win_rate > 0.9  # unaffected by the absurd slippage_pct above
+
+
+def test_evaluate_candidacy_default_scenario_is_delay_only_not_realistic(momentum_session):
+    session, start, feature_set_version = momentum_session
+    evaluate_candidacy(
+        session, _momentum_condition(), "CALL", 60, ASSET, TIMEFRAME, _backtest_config(),
+        feature_set_version=feature_set_version, payout=0.85,
+        walk_forward_folds=_train_val_folds(start), label="scenario_name_check",
+    )
+    scenarios_used = {
+        r.execution_scenario
+        for r in session.query(BacktestRun).filter_by(strategy_label="scenario_name_check").all()
+    }
+    assert scenarios_used == {f"delay_only_{DEFAULT_ENTRY_DELAY_CANDLES}"}
+    assert "realistic" not in scenarios_used
+
+
+def test_evaluate_candidacy_respects_explicit_scenario_override(momentum_session):
+    session, start, feature_set_version = momentum_session
+    evaluate_candidacy(
+        session, _momentum_condition(), "CALL", 60, ASSET, TIMEFRAME, _backtest_config(),
+        feature_set_version=feature_set_version, payout=0.85,
+        walk_forward_folds=_train_val_folds(start), scenario=delay_only_scenario(3),
+        label="override_scenario_check",
+    )
+    scenarios_used = {
+        r.execution_scenario
+        for r in session.query(BacktestRun).filter_by(strategy_label="override_scenario_check").all()
+    }
+    assert scenarios_used == {"delay_only_3"}
+
+
+def test_evaluate_candidacy_rejects_at_walk_forward_gate_when_too_few_folds_sampled(momentum_session):
+    session, start, feature_set_version = momentum_session
+    verdict = evaluate_candidacy(
+        session, _momentum_condition(), "CALL", 60, ASSET, TIMEFRAME, _backtest_config(),
+        feature_set_version=feature_set_version, payout=0.85,
+        walk_forward_folds=_train_val_folds(start),
+        thresholds=CandidacyThresholds(min_folds_sampled=99),  # unreachable
+    )
+    assert verdict.accepted is False
+    assert verdict.rejected_at_gate == "walk_forward"
+    assert "n_folds_sufficiently_sampled" in verdict.reason
+    # TEST must never be touched once gate 3 fails
+    assert session.query(BacktestRun).filter_by(split="test").count() == 0

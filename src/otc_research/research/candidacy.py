@@ -1,10 +1,23 @@
-"""Step 5 (approved plan point 6): the pre-registered accept/reject bar
-for a discovered condition — fixed BEFORE any condition is evaluated,
-reusing the EXISTING robustness/walk-forward machinery (Phases 6-7)
-unchanged, pointed at a discovered ``Condition`` via
-``research.condition_strategy.ConditionStrategy`` instead of a
+"""Step 5 (approved plan point 6), corrected by
+``BINARY_OPTIONS_REFRAME_AUDIT.md`` Section 8: the pre-registered
+accept/reject bar for a discovered condition — fixed BEFORE any
+condition is evaluated, reusing the EXISTING robustness/walk-forward
+machinery (Phases 6-7) unchanged, pointed at a discovered ``Condition``
+via ``research.condition_strategy.ConditionStrategy`` instead of a
 hand-designed H1-H20 strategy. This gives a discovered condition exactly
 the same rigor H1-H20 already got — no separate, lighter-weight path.
+
+**Execution model, corrected**: every gate below evaluates the condition
+under a single ``delay_only_scenario`` (zero slippage, zero signal-drop)
+by default — NOT the bundled "realistic" scenario Steps 5-8 originally
+used. A binary option's payoff is purely ``(WIN or LOSS) × payout``; it
+has no fill-price/bid-ask-spread concept, so the ``slippage_pct``
+component of "realistic" (calibrated for a manually-placed spot-FX
+trade) doesn't belong in a binary-options evaluation — see the audit for
+the full reasoning and why this correction was needed. Delay remains
+modeled (a genuine effect: the gap between signal generation and actual
+entry, even reacting fast, can shift the quote you lock in) via
+``entry_delay_candles``, exactly as before.
 
 Four gates, run in order, each a precondition for the next — cheapest and
 most informative first, and TEST is the very last thing touched:
@@ -14,10 +27,15 @@ most informative first, and TEST is the very last thing touched:
   2. TRAIN parameter-sensitivity sweep over ``edge_perturbation_grid``
      (``backtest.robustness.run_parameter_sweep`` / ``evaluate_robustness``,
      unchanged) — must classify "consistent_direction".
-  3. Walk-forward on the ORIGINAL (unperturbed) condition, realistic
-     scenario only (``backtest.walkforward``, unchanged) —
-     ``fraction_folds_with_edge`` must clear the threshold AND the worst
-     fold must still clear break-even, not just the mean.
+  3. Walk-forward on the ORIGINAL (unperturbed) condition —
+     ``fraction_folds_with_edge`` must clear the threshold, at least
+     ``min_folds_sampled`` folds must actually have enough samples to
+     judge (a fix from the audit: without this floor, a condition that
+     only ever matches in one walk-forward window can trivially clear
+     "100% of 1 sufficiently-sampled fold" — exactly what let one
+     session-conditioned candidate reach TEST on a near-meaningless
+     walk-forward pass), and the worst fold must still clear break-even,
+     not just the mean.
   4. Only if 1-3 all pass: TEST split, touched exactly once via the same
      ``run_backtest(split="test")`` path (and its loud log warning) every
      other split-touching caller in this codebase uses — must be
@@ -35,7 +53,7 @@ from typing import Sequence
 from sqlalchemy.orm import Session
 
 from otc_research.backtest.engine import run_backtest
-from otc_research.backtest.execution import realistic_scenario
+from otc_research.backtest.execution import ExecutionScenario, delay_only_scenario
 from otc_research.backtest.metrics import break_even_win_rate, payout_adjusted_expectancy
 from otc_research.backtest.robustness import (
     RobustnessVerdict,
@@ -52,11 +70,12 @@ from otc_research.config import BacktestConfig
 from otc_research.research.condition_strategy import ConditionStrategy
 from otc_research.research.discovery import Condition
 
-#: The only execution scenario candidacy is judged under — BACKTESTING.md's
-#: "realistic", never "optimistic" (that would understate real friction)
-#: and never "pessimistic" (that's for a separate stress read, not the bar
-#: itself).
-REALISTIC = "realistic"
+#: Pre-registered default: ~1 candle of manual reaction time (detect the
+#: signal, read it, click). Open decision per the audit — override via
+#: ``evaluate_candidacy(..., scenario=delay_only_scenario(n))`` if a
+#: different reaction-time assumption is wanted; never picked per-run
+#: after seeing a result.
+DEFAULT_ENTRY_DELAY_CANDLES = 1
 
 
 @dataclass(frozen=True)
@@ -74,6 +93,11 @@ class CandidacyThresholds:
     edge_perturbation_grid: tuple[float, ...] = (-0.2, -0.1, 0.0, 0.1, 0.2)
     robustness_min_sample_size: int = 30
     walk_forward_min_sample_size: int = 20
+    #: Added by BINARY_OPTIONS_REFRAME_AUDIT.md Section 8: at least this
+    #: many walk-forward folds must themselves be sufficiently sampled
+    #: before ``fraction_folds_with_edge`` means anything — a fraction
+    #: computed over 1 fold is not walk-forward validation.
+    min_folds_sampled: int = 3
 
 
 @dataclass(frozen=True)
@@ -106,6 +130,7 @@ def evaluate_candidacy(
     payout: float,
     walk_forward_folds: Sequence[WalkForwardFold],
     thresholds: CandidacyThresholds = CandidacyThresholds(),
+    scenario: ExecutionScenario | None = None,
     rng_seed: int = 0,
     label: str | None = None,
 ) -> CandidacyVerdict:
@@ -116,10 +141,18 @@ def evaluate_candidacy(
     payout the condition is judged against (see ``BACKTESTING.md``); it is
     not looked up from anywhere, since the real broker payout at signal
     time is not known ahead of a live run (see ``Signal.payout_is_estimated``
-    in the approved plan's point 9).
+    in the approved plan's point 9). ``scenario`` defaults to
+    ``delay_only_scenario(DEFAULT_ENTRY_DELAY_CANDLES)`` — see the module
+    docstring for why "realistic" (with slippage) is no longer the
+    default; pass an explicit scenario to override the reaction-time
+    assumption or, for a diagnostic-only comparison, to reintroduce
+    slippage via ``backtest.execution.slippage_only_scenario``/
+    ``realistic_scenario``.
     """
     break_even = break_even_win_rate(payout)
-    scenarios = [realistic_scenario(backtest_config.realistic)]
+    active_scenario = scenario if scenario is not None else delay_only_scenario(DEFAULT_ENTRY_DELAY_CANDLES)
+    scenario_name = active_scenario.name
+    scenarios = [active_scenario]
     base_strategy = ConditionStrategy(condition, direction, expiry_seconds, label=label)
 
     # --- gate 1: TRAIN sample size + payout-adjusted margin ---------------
@@ -198,7 +231,7 @@ def evaluate_candidacy(
     )
     robustness = evaluate_robustness(
         sweep_points,
-        REALISTIC,
+        scenario_name,
         min_sample_size=thresholds.robustness_min_sample_size,
         min_edge_fraction=thresholds.min_edge_fraction_robustness,
     )
@@ -229,12 +262,13 @@ def evaluate_candidacy(
         rng_seed=rng_seed,
     )
     wf_summary = summarize_walk_forward(
-        fold_results, REALISTIC, min_sample_size=thresholds.walk_forward_min_sample_size
+        fold_results, scenario_name, min_sample_size=thresholds.walk_forward_min_sample_size
     )
     fraction = wf_summary.fraction_folds_with_edge
     worst = wf_summary.worst_fold_win_rate
     if (
-        fraction is None
+        wf_summary.n_folds_sufficiently_sampled < thresholds.min_folds_sampled
+        or fraction is None
         or fraction < thresholds.min_fraction_folds_with_edge
         or worst is None
         or worst <= break_even
@@ -243,7 +277,9 @@ def evaluate_candidacy(
             accepted=False,
             rejected_at_gate="walk_forward",
             reason=(
-                f"walk-forward fraction_folds_with_edge="
+                f"walk-forward n_folds_sufficiently_sampled="
+                f"{wf_summary.n_folds_sufficiently_sampled} (required >= "
+                f"{thresholds.min_folds_sampled}), fraction_folds_with_edge="
                 f"{fraction!r} (required >= "
                 f"{thresholds.min_fraction_folds_with_edge}), "
                 f"worst_fold_win_rate={worst!r} "

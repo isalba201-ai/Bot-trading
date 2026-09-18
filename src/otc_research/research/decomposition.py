@@ -6,12 +6,19 @@ Sections 1-3) mechanically rather than by inspection.
 
 Reuses ``backtest.execution.ExecutionScenario`` and
 ``backtest.engine.run_backtest`` completely unchanged — no changes to
-the core engine anywhere. ``research.candidacy``'s gate 1 only ever runs
-the single bundled "realistic" scenario (delay + slippage + drop
-together); this module runs the SAME condition through several more
-scenario instances so delay-only and slippage-only effects can be told
-apart, which candidacy.py deliberately never needed to do (its job is a
-pass/fail bar, not a diagnostic breakdown).
+the core engine anywhere. ``research.candidacy``'s gate 1 now evaluates a
+single ``delay_only_scenario`` (see ``BINARY_OPTIONS_REFRAME_AUDIT.md``:
+a binary option has no fill-price/spread concept, so slippage doesn't
+belong in that default); this module still runs the SAME condition
+through the full ladder — including ``slippage_only`` and the bundled
+``realistic``/``pessimistic`` scenarios — purely as a **diagnostic**
+breakdown (e.g. "how would this have looked if it were a manually-placed
+spot-FX trade instead"), never as the binary-options pass/fail bar.
+**Read ``classify()``'s A/B/C output with that in mind**: a condition
+classified ``C_execution_destroys_it`` here may be destroyed specifically
+by the ``slippage_only``/``realistic`` rungs — which, per the audit
+above, is not evidence against it as a binary-options signal. Check
+which specific rung(s) actually failed before drawing that conclusion.
 
 The delay-only rungs are spaced in whole CANDLES on this project's finest
 available data (1-minute), the approved proxy for a true sub-minute
@@ -31,8 +38,10 @@ from otc_research.backtest.engine import run_backtest
 from otc_research.backtest.execution import (
     OPTIMISTIC,
     ExecutionScenario,
+    delay_only_scenario,
     pessimistic_scenario,
     realistic_scenario,
+    slippage_only_scenario,
 )
 from otc_research.backtest.metrics import TradeStats, break_even_win_rate, payout_adjusted_expectancy
 from otc_research.config import BacktestConfig
@@ -56,24 +65,6 @@ B_TOO_SMALL_FOR_PAYOUT = "B_too_small_for_payout"
 C_EXECUTION_DESTROYS_IT = "C_execution_destroys_it"
 SURVIVES_LADDER = "survives_ladder"
 INSUFFICIENT_DATA = "insufficient_data"
-
-
-def delay_only_scenario(entry_delay_candles: int) -> ExecutionScenario:
-    return ExecutionScenario(
-        name=f"delay_only_{entry_delay_candles}",
-        entry_delay_candles=entry_delay_candles,
-        signal_drop_probability=0.0,
-        slippage_pct=0.0,
-    )
-
-
-def slippage_only_scenario(slippage_pct: float) -> ExecutionScenario:
-    return ExecutionScenario(
-        name="slippage_only",
-        entry_delay_candles=0,
-        signal_drop_probability=0.0,
-        slippage_pct=slippage_pct,
-    )
 
 
 @dataclass(frozen=True)

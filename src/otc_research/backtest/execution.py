@@ -2,6 +2,18 @@
 backtest to run under. A strategy that only survives ``OPTIMISTIC`` is
 classified fragile, not profitable — see BACKTESTING.md's "Execution
 realism" section.
+
+``realistic_scenario``/``pessimistic_scenario`` bundle ``slippage_pct``
+in with delay — appropriate for a hand-designed strategy meant to be
+manually placed as a spot-FX trade, where crossing the bid/ask spread is
+a real cost. ``delay_only_scenario``/``slippage_only_scenario`` below
+exist to isolate that bundle into its parts — see
+``BINARY_OPTIONS_REFRAME_AUDIT.md``: a binary option has no fill-price/
+spread concept, so ``research.candidacy`` now evaluates a discovered
+condition under ``delay_only_scenario`` (no slippage, no signal-drop) by
+default, never the bundled ``realistic_scenario``. ``slippage_only_scenario``
+is kept for diagnostic/forensic use (``research.decomposition``), not as
+a default for any binary-options-relevant evaluation.
 """
 
 from __future__ import annotations
@@ -60,4 +72,30 @@ def pessimistic_scenario(cfg: ExecutionScenarioConfig) -> ExecutionScenario:
         entry_delay_candles=cfg.entry_delay_candles,
         signal_drop_probability=cfg.signal_drop_probability,
         slippage_pct=cfg.slippage_pct,
+    )
+
+
+def delay_only_scenario(entry_delay_candles: int) -> ExecutionScenario:
+    """No slippage, no signal-drop — isolates pure entry-timing delay
+    (how much does waiting ``entry_delay_candles`` extra candles before
+    entering cost you), the one friction dimension a binary option
+    actually has (see this module's docstring).
+    """
+    return ExecutionScenario(
+        name=f"delay_only_{entry_delay_candles}",
+        entry_delay_candles=entry_delay_candles,
+        signal_drop_probability=0.0,
+        slippage_pct=0.0,
+    )
+
+
+def slippage_only_scenario(slippage_pct: float) -> ExecutionScenario:
+    """Zero delay, just the adverse fill-price adjustment — a spot-FX
+    bid/ask-crossing cost model. Diagnostic only: kept for
+    ``research.decomposition``'s forensic ladder, not used as a default
+    for any binary-options-relevant evaluation (a binary option has no
+    fill price to slip).
+    """
+    return ExecutionScenario(
+        name="slippage_only", entry_delay_candles=0, signal_drop_probability=0.0, slippage_pct=slippage_pct
     )
