@@ -94,6 +94,42 @@ constant, specifically so Phase 6's robustness/sensitivity sweeps can
 vary it — see that module's docstring and BACKTESTING.md's
 OVERFITTED/FRAGILE classification.
 
+## What real data has actually shown so far (not a final classification)
+
+The only data run through the engine so far: real EUR/USD candles from
+Twelve Data (5-minute, ~17 days; 1-hour, ~7 months), train/validation
+splits only, never test.
+
+- **None of H1, H2, H3, H5, H6, H8, H10 showed a credible edge** on
+  either timeframe — most Wilson 95% CIs on the optimistic scenario span
+  50%, and a few (H5, H6 at 1h; H3, H6 at 5m) sat entirely *below* 50%
+  with large samples, i.e. statistically significant *underperformance*
+  vs. a coin flip. That is itself informative — it will not be
+  "corrected" by flipping the rule after the fact, since that would be
+  exactly the kind of post-hoc data-mining this document's multiple-testing
+  section exists to prevent — but it isn't evidence for anything currently
+  registered.
+- **H4 (Bollinger mean reversion) looked promising at first** on 1h data:
+  56.9% (train, n=415) and 58.9% (validation, n=124), both with CIs
+  clearing 50%. A Phase 6 robustness sweep then showed this is fragile,
+  not robust: a threshold sweep held up (`consistent_direction`, 4/5
+  points), but an expiry sweep did not (edge present at 1h-2h, gone by
+  3h-4h) and, more importantly, a time-period sweep did not (edge
+  present in the second half of the ingested window, absent in the
+  first half). See `Hypothesis.notes` for H4 (via `scripts/` or a DB
+  query) for the exact figures.
+- **Execution cost dominates at 5-minute granularity**: EUR/USD's typical
+  5-minute move is ~0.01% (about a pip), comparable to or smaller than
+  the default realistic/pessimistic slippage assumptions in
+  `config.yaml`. Every hypothesis's win rate collapsed under those
+  scenarios at 5m; the effect was much smaller at 1h, where the typical
+  move is larger relative to the same cost assumptions.
+
+None of this is a ROBUST EDGE, a PROMISING classification, or grounds to
+build the Phase 9 signal UI on top of H4 specifically. It's exactly what
+Phase 6 is for: catching an apparent edge before it reaches further
+phases on the strength of one lucky split.
+
 ## Explicitly forbidden language
 
 Never describe any hypothesis or strategy, at any status, as: "infallible",

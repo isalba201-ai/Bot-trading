@@ -63,19 +63,21 @@ data-generating processes.
 ## Project status
 
 Building in phases, each gated by tests before moving to the next. **Phases
-1-5 are complete**: architecture + storage, data validation, real data
+1-6 are complete**: architecture + storage, data validation, real data
 sources (Twelve Data and OANDA), point-in-time feature engineering (see
 [FEATURES.md](FEATURES.md)), a backtesting engine that runs a strategy
 under a strict train/validation/test split and three execution-realism
-scenarios reporting Wilson-CI-grounded win rate/expectancy, and the
-H1-H10 baseline strategies themselves, runnable through that engine (see
-[BACKTESTING.md](BACKTESTING.md) / [STRATEGIES.md](STRATEGIES.md)). **No
-hypothesis has actually been run against real market data yet** —
-they're all still `registered`, not `tested`, until someone fetches real
-candles and runs `scripts/run_baseline_backtests.py`. Robustness/
-walk-forward/Monte Carlo testing and the on-demand "BUSCAR SEÑAL" UI —
-everything the signal engine needs to show a non-fabricated confidence
-number — are **not built yet**.
+scenarios reporting Wilson-CI-grounded win rate/expectancy, the H1-H10
+baseline strategies themselves, and a robustness/sensitivity sweep runner
+(see [BACKTESTING.md](BACKTESTING.md) / [STRATEGIES.md](STRATEGIES.md)).
+**All 9 zero-argument hypotheses have actually been run against real
+EUR/USD data** (5m and 1h, via Twelve Data) — see STRATEGIES.md's
+"What real data has actually shown so far" for the honest result: no
+robust edge yet; H4 looked promising at first but a robustness sweep
+showed it doesn't hold up across time periods. Walk-forward/Monte Carlo
+testing and the on-demand "BUSCAR SEÑAL" UI — everything the signal
+engine needs to show a non-fabricated confidence number — are **not
+built yet**.
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -83,8 +85,8 @@ number — are **not built yet**.
 | 2 | Data validation | Done |
 | 3 | Feature engineering | Done |
 | 4 | Backtesting engine | Done |
-| 5 | Baseline strategies (H1-H10) | Done (code only — none tested against real data yet) |
-| 6 | Robustness testing | Not started |
+| 5 | Baseline strategies (H1-H10) | Done — run against real EUR/USD data, no robust edge found yet |
+| 6 | Robustness testing | Done |
 | 7 | Walk-forward analysis | Not started |
 | 8 | Monte Carlo | Not started |
 | 9 | Signal engine + "BUSCAR SEÑAL" UI | Not started |
@@ -175,6 +177,21 @@ the three execution-realism scenarios, and why `--split test` should only
 ever be used once, deliberately (`run_baseline_backtests.py` doesn't even
 offer it — use `run_backtest.py` directly, one strategy at a time, when
 it's actually time).
+
+## Stress-test a strategy's parameters (robustness sweep)
+
+```bash
+python scripts/run_robustness_sweep.py \
+    --strategy otc_research.strategies.h4_bollinger:H4BollingerMeanReversion \
+    --pair EUR_USD --timeframe 1h \
+    --param-grid '[{"expiry_seconds": 3600}, {"expiry_seconds": 7200}]'
+```
+
+Runs the same strategy shape across a parameter/expiry/time-window grid
+and reports whether a Wilson-CI edge holds up across nearby variations
+("consistent_direction") or only at one lucky point ("fragile") — see
+BACKTESTING.md's robustness rule and STRATEGIES.md for what this already
+found for H4.
 
 ## Import a CSV file instead
 

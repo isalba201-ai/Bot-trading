@@ -47,13 +47,20 @@ class BacktestRunResult:
     backtest_run_id: int
 
 
-def _load_candles(session: Session, asset: str, timeframe: str) -> list[SimCandle]:
-    rows = (
-        session.query(Candle)
-        .filter(Candle.asset == asset, Candle.timeframe == timeframe)
-        .order_by(Candle.timestamp.asc())
-        .all()
-    )
+def _load_candles(
+    session: Session,
+    asset: str,
+    timeframe: str,
+    *,
+    start: dt.datetime | None = None,
+    end: dt.datetime | None = None,
+) -> list[SimCandle]:
+    query = session.query(Candle).filter(Candle.asset == asset, Candle.timeframe == timeframe)
+    if start is not None:
+        query = query.filter(Candle.timestamp >= start)
+    if end is not None:
+        query = query.filter(Candle.timestamp < end)
+    rows = query.order_by(Candle.timestamp.asc()).all()
     return [
         SimCandle(timestamp=r.timestamp, open=r.open, high=r.high, low=r.low, close=r.close)
         for r in rows
@@ -97,7 +104,17 @@ def run_backtest(
     split: str = "train",
     scenarios: Sequence[ExecutionScenario] | None = None,
     rng_seed: int = 0,
+    start: dt.datetime | None = None,
+    end: dt.datetime | None = None,
 ) -> list[BacktestRunResult]:
+    """``start``/``end`` restrict the candle universe to a sub-window
+    BEFORE the train/validation/test split is computed — i.e. the split
+    fractions apply within that window, not the full history. This exists
+    for Phase 6's robustness sweeps (BACKTESTING.md: "varying ... the time
+    period ... the sample size"), not for everyday use — most callers
+    should leave both as None and use the strategy's full ingested
+    history.
+    """
     if split not in VALID_SPLITS:
         raise ValueError(f"split must be one of {VALID_SPLITS}, got {split!r}")
 
@@ -113,7 +130,7 @@ def run_backtest(
             timeframe,
         )
 
-    candles = _load_candles(session, asset, timeframe)
+    candles = _load_candles(session, asset, timeframe, start=start, end=end)
     if len(candles) < 3:
         raise ValueError(
             f"not enough candles for {asset}/{timeframe} to split "

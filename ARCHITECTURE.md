@@ -19,9 +19,11 @@ layer in isolation.
 ├───────────────────────────────────────────────────────────────┤
 │  9. Signal engine ("BUSCAR SEÑAL" UI, A+/A/B/NO_TRADE tiers)   │
 ├───────────────────────────────────────────────────────────────┤
-│  6-8. Robustness, walk-forward, Monte Carlo                   │
+│  7-8. Walk-forward, Monte Carlo                                │
 ├───────────────────────────────────────────────────────────────┤
-│  5. Baseline strategies (H1-H10, this phase)                    │
+│  6. Robustness / parameter-sensitivity sweeps (this phase)      │
+├───────────────────────────────────────────────────────────────┤
+│  5. Baseline strategies (H1-H10)                                │
 ├───────────────────────────────────────────────────────────────┤
 │  4. Backtesting engine                                          │
 ├───────────────────────────────────────────────────────────────┤
@@ -62,6 +64,7 @@ src/otc_research/
     simulator.py            # walks candles+features -> simulated trades
     metrics.py               # Wilson CI win rate, expectancy — never a bare point estimate
     engine.py                # orchestrates candles+features -> split -> simulate -> BacktestRun
+    robustness.py             # parameter/expiry/time-window sweeps + fragility verdict
   strategies/
     h1_streak.py .. h10_combined.py  # one Strategy implementation per hypothesis (STRATEGIES.md)
     __init__.py               # BASELINE_STRATEGIES registry (H9 excluded, needs explicit params)
@@ -75,6 +78,7 @@ scripts/
   compute_features.py     # CLI to compute Phase 3 features from stored candles
   run_backtest.py         # CLI to run one strategy through the Phase 4 backtesting engine
   run_baseline_backtests.py # CLI to run every Phase 5 baseline strategy at once (train/validation only)
+  run_robustness_sweep.py  # CLI for Phase 6 parameter/expiry/time-window sweeps
   seed_hypotheses.py      # registers the hypotheses in STRATEGIES.md
 config/
   config.yaml            # risk limits, signal thresholds, pairs, DB url
@@ -130,16 +134,25 @@ restructuring what already exists.
    validation data and advances each `Hypothesis.status` from
    `registered` to `tested` — never a claim of edge, just that it has
    actually been run through the engine.
+7. `backtest.robustness.run_parameter_sweep()` runs the same strategy
+   shape across a grid of constructor parameters and, optionally, several
+   time windows (`run_backtest`'s `start`/`end`, which restrict the
+   candle universe before the train/validation/test split is computed).
+   `evaluate_robustness()` then checks whether a Wilson-CI edge holds up
+   across most of the sufficiently-sampled points or only a lucky few —
+   `scripts/run_robustness_sweep.py` is the CLI. This already found, on
+   real EUR/USD data, that H4's apparent edge does not survive a
+   time-period sweep — see STRATEGIES.md.
 
-Everything past this point (robustness/walk-forward/Monte Carlo testing,
-signals) does not exist yet and must be built strictly on top of
-validated `Feature` rows and this engine — never by recomputing
-indicators ad hoc or reading candles directly, so that every strategy
-sees the same, auditable numbers and validation can't be silently
-bypassed. The eventual "BUSCAR SEÑAL" UI (Phase 9) is a thin layer that
-triggers this same fetch → validate → store → feature →
-strategy-evaluation path on demand, then either shows a signal or "NO HAY
-SEÑAL" — see SIGNAL_ENGINE.md. It never places an order.
+Everything past this point (walk-forward/Monte Carlo testing, signals)
+does not exist yet and must be built strictly on top of validated
+`Feature` rows and this engine — never by recomputing indicators ad hoc
+or reading candles directly, so that every strategy sees the same,
+auditable numbers and validation can't be silently bypassed. The eventual
+"BUSCAR SEÑAL" UI (Phase 9) is a thin layer that triggers this same fetch
+→ validate → store → feature → strategy-evaluation path on demand, then
+either shows a signal or "NO HAY SEÑAL" — see SIGNAL_ENGINE.md. It never
+places an order.
 
 ## Why not Pocket Option OTC
 
