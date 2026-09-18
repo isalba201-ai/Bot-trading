@@ -301,6 +301,13 @@ pytest
   corrected re-run's results: still no accepted candidate, but the
   strongest result this project has produced so far (rejected at TEST on
   CI margin, not reversal)
+- [EXPIRY_UNIVERSE_AUDIT.md](EXPIRY_UNIVERSE_AUDIT.md) — a second
+  correction: no expiry duration is assumed or prioritized a priori
+  (retracts this project's own earlier "prioritize short expiries"
+  recommendation); confirms exactly how timeframe+horizon map to real
+  expiry duration, and gives the full matrix of every (asset, timeframe,
+  horizon, direction) combination investigated so far and how far each
+  reached in the candidacy funnel
 - [SIGNAL_ENGINE.md](SIGNAL_ENGINE.md) — the planned "BUSCAR SEÑAL" flow, signal
 - [SIGNAL_ENGINE.md](SIGNAL_ENGINE.md) — the planned "BUSCAR SEÑAL" flow, signal
   format, and confidence-reporting rules

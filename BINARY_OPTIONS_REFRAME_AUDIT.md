@@ -216,13 +216,24 @@ system: the first can produce a fresh signal every minute; the second
 only every 5 minutes, meaning a person could be looking at up-to-5-
 minute-stale context before acting. **Recommendation**: report both
 quantities explicitly, side by side, for every hypothesis from here on
-(the table in Section 16 does this) — and prioritize the
-**1-minute-timeframe / short-`h`** combinations (h=1,3,5 → 1/3/5-minute
-expiries) as the primary research axis, since they most directly match
-common Pocket Option contract durations and give the freshest signal
-cadence; treat 5m/15m timeframe runs as secondary, exploratory context
-(regime/session structure), not as alternate ways to reach the same
-expiry duration.
+(the table in Section 16 does this).
+
+**Correction — the "prioritize short expiries" recommendation
+originally written here has been retracted.** This document originally
+proposed treating 1-minute-timeframe/short-`h` combinations as the
+primary research axis and 5m/15m as "secondary, exploratory context,"
+on the assumption that short expiries "most directly match common
+Pocket Option contract durations." **The user never set that
+constraint, and it should never have been assumed — see
+`EXPIRY_UNIVERSE_AUDIT.md`, written after this document, for the full
+correction.** No expiry duration is prioritized a priori; every
+(asset, timeframe, horizon) combination this project has data for is
+treated as an equally legitimate hypothesis, and evidence — not an
+assumed target duration — decides which ones deserve continued study.
+`EXPIRY_UNIVERSE_AUDIT.md`'s matrix already shows this mattered in
+practice: some of the furthest-reaching results (walk-forward and even
+TEST arrivals) came from 15-minute and 25-minute-plus expiries, exactly
+the combinations this section had proposed deprioritizing.
 
 Respecting TRAIN/VALIDATION/TEST, FDR, walk-forward, TEST-once, and
 minimum-sample discipline **across every horizon tried, without
