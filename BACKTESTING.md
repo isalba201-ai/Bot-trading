@@ -12,12 +12,18 @@ history and reports mean/dispersion/worst-fold win rate (Phase 7).
 repository is entitled to a final NO EDGE / WEAK EDGE / PROMISING /
 ROBUST EDGE classification — see "What's implemented" below, and
 STRATEGIES.md for what an actual run against real EUR/USD data has shown
-so far (short version: nothing robust yet — H4's apparent edge does not
-survive realistic execution costs in any of the robustness or
-walk-forward checks run against it). This document was written before
-any of that code, so the rules were fixed before results existed that
-could tempt bending them — see git history for the pre-implementation
-version.
+so far (short version: nothing robust yet across 20 hand-designed
+hypotheses, H1-H20). This document was written before any of that code,
+so the rules were fixed before results existed that could tempt bending
+them — see git history for the pre-implementation version.
+
+**This methodology is also now reused, unchanged, by a systematic
+statistical-discovery layer** (`otc_research/research/`, see
+STRATEGIES.md's "Pivot" section): instead of a person hand-picking the
+next indicator combination, an FDR-corrected search proposes candidate
+conditions, and `research/candidacy.py` puts every one of them through
+this exact same engine before it's eligible to be called a candidate —
+see the "What's implemented" table's new row below.
 
 ## Train / validation / test split
 
@@ -144,6 +150,7 @@ A+ only — see RISK_MANAGEMENT.md).
 | Every run's inputs auditable | `db.models.BacktestRun`, one row per (strategy, asset, timeframe, split, scenario), including the RNG seed used |
 | Walk-forward analysis | `backtest/walkforward.py::generate_folds` + `run_walk_forward` + `summarize_walk_forward` — slides train/test fold windows (default non-overlapping) across the whole ingested history, evaluates each fold's test window independently via `run_backtest(split="walk_forward")`, and reports mean win rate, population stdev across folds, and the worst single fold — never just the best-looking fold. The train window isn't used for fitting yet since no current strategy fits parameters from data; see the module docstring |
 | Monte Carlo (bootstrap/permutation of trade sequences) | **Not implemented (Phase 8)** |
+| A discovered (not hand-designed) condition's candidacy bar | `research/candidacy.py::evaluate_candidacy` — re-runs a `research.discovery`-found condition through the SAME unmodified `run_backtest`/`evaluate_robustness`/`run_walk_forward` this table already describes (sample size + payout-adjusted margin → robustness sweep → walk-forward → TEST, touched once) — see STRATEGIES.md's "Pivot" section for the first real-data run and why nearly every discovered condition failed at the very first gate |
 | Robustness / parameter sensitivity sweeps | `backtest/robustness.py::run_parameter_sweep` + `evaluate_robustness` — varies a strategy's constructor parameters, its expiry, and/or the time window, then checks whether a Wilson-CI edge holds across at least `min_edge_fraction` (default 70%) of the sufficiently-sampled points ("consistent_direction") or only at a lucky few ("fragile"). Deliberately uses different vocabulary from the final edge classification below — see the module docstring |
 | Multiple-testing / data-mining control across many hypotheses | Partially: `Hypothesis` table + `BacktestRun` rows make every run auditable, but no automatic adjustment of significance thresholds for the number of comparisons made exists yet |
 | Final edge classification (NO EDGE / WEAK EDGE / PROMISING / ROBUST EDGE) | **Not implemented** — requires walk-forward + Monte Carlo + robustness together; walk-forward and robustness (Phases 6-7) are done, Monte Carlo (Phase 8) is not, so nothing produced by the engine today should be read as a final classification |

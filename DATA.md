@@ -99,31 +99,70 @@ three block insertion of the offending candle), and `gap`, `suspicious_move`,
 the surrounding valid candles). Nothing in this table ever triggers
 automatic data repair — it's a log for a human to look at.
 
-### `features` (schema in place, not yet populated — Phase 3)
+### `features` (Phase 3, populated up to `feature_set_version = "v4"`)
 
 Point-in-time computed values, versioned by `feature_set_version` so that a
 change to how a feature is computed doesn't silently invalidate old
 backtests — it produces a new version instead. The hard rule for anything
 written here: a feature at `timestamp` may only be computed from candles
-with `timestamp' <= timestamp`. Anything else is look-ahead bias.
+with `timestamp' <= timestamp`. Anything else is look-ahead bias. See
+FEATURES.md for the full v1-v4 feature list.
 
-### `hypotheses` (schema in place, seeded with the initial 10 — see STRATEGIES.md)
+### `hypotheses` (seeded with H1-H20 — see STRATEGIES.md)
 
-Every strategy idea considered, registered before its results are known.
-This exists to make multiple-testing / data-mining bias auditable: an
-outside reader can see how many hypotheses were tried in total, not just
-whichever one is being reported on.
+Every hand-designed strategy idea considered, registered before its
+results are known. This exists to make multiple-testing / data-mining
+bias auditable: an outside reader can see how many hypotheses were tried
+in total, not just whichever one is being reported on. The finer-grained
+`condition_trials` table below extends this same discipline down to
+individual, systematically-searched conditions.
 
-### `signals` (schema in place, not yet populated — Phase 9)
+### `backtest_runs` (Phase 4)
 
-A generated signal and, once resolved, its outcome — see SIGNAL_ENGINE.md
-for the full design. Write-once for the inputs that produced it
-(`features_snapshot`, `conditions_met`, `score`, `historical_sample_size`,
-`historical_win_rate`, `win_rate_ci_low/high`, `expectancy`, ...); only the
-`result`/`pnl`/`expiry_price` fields are filled in later, after the target
-horizon elapses and the real outcome is fetched. `payout` is nullable — a
-plain directional Forex signal has none; it's only relevant if you
-manually place it as a fixed-payout instrument elsewhere.
+One row per (strategy or `ConditionStrategy`, asset, timeframe, split,
+execution scenario) run through the backtest engine — sample size, wins,
+losses, voided, win rate + 95% Wilson CI, expectancy, the RNG seed used,
+and (Phase 7) a `fold_index` for walk-forward runs. Individual simulated
+trades are not persisted (they're exactly reproducible from the inputs
+this row records); only the aggregate statistics are stored.
+
+### `condition_trials` (the statistical-discovery pivot, see STRATEGIES.md)
+
+Every 2-3-way condition combination `research.discovery.run_discovery()`
+tries, logged BEFORE its corrected significance is known — the
+fine-grained extension of `hypotheses`'s registration discipline down to
+individual bin/threshold combinations. `run_id` groups every trial from
+one discovery run; `fdr_significant` is only ever set after
+Benjamini-Hochberg correction has been applied across the WHOLE run, never
+per-trial in isolation.
+
+### `signals` (Phase 9, verified via historical replay — see SIGNAL_ENGINE.md)
+
+A generated signal and, once resolved, its outcome. Write-once for the
+inputs that produced it (`features_snapshot`, `conditions_met`,
+`reasons_rejected`, `score`, `historical_sample_size`,
+`historical_win_rate`, `win_rate_ci_low/high`, `expectancy`,
+`break_even_win_rate`, `margin_over_break_even`, `confidence_label`,
+`signal_ref`, the `data_received_at`/`sent_at`/`valid_from`/`valid_until`
+latency timestamps, ...); only `status`, `result`, `pnl`, `expiry_price`,
+and `sent_at` are filled in later, as the signal moves through its
+PENDING/EXPIRED/DECIDED lifecycle. `payout` is nullable — a plain
+directional Forex signal has none; it's only relevant if you manually
+place it as a fixed-payout instrument elsewhere, and
+`payout_is_estimated` says explicitly when that payout figure isn't a
+real, observed one.
+
+### `signal_decisions` (Phase 9)
+
+A person's manual decision about one `signals` row — `TOOK_TRADE` /
+`DID_NOT_TAKE` / `ARRIVED_LATE`, plus whatever actuals (entry price,
+payout observed, entry time, expiry used) were recorded at the time, and
+`result`/`pnl` filled in later once known. Never inferred or
+auto-generated — the one write path is `signals.decisions.record_decision`
+(`scripts/record_signal_decision.py`, since there is no UI yet). This is
+what lets `signals.performance` compare the theoretical read (every
+signal) against the executable one (only signals someone actually acted
+on).
 
 ## Data validation rules (Phase 2)
 

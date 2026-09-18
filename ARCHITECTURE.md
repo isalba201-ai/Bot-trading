@@ -10,22 +10,27 @@ layer in isolation.
 
 ```
 ┌───────────────────────────────────────────────────────────────┐
-│ 12. Machine learning (optional, only if it beats simple      │
-│     baselines out-of-sample)                                  │
+│ 12. Machine learning (gated: only escalated to if statistical │
+│     discovery finds an FDR-significant condition)              │
 ├───────────────────────────────────────────────────────────────┤
-│ 11. Dashboard (read-only view over the DB)                    │
+│ 11. Dashboard (read-only view over the DB) -- not built        │
 ├───────────────────────────────────────────────────────────────┤
-│ 10. Signal journal reconciliation (predicted vs. actual result)│
+│ 10. Notifications (console today; other channels on request)   │
 ├───────────────────────────────────────────────────────────────┤
-│  9. Signal engine ("BUSCAR SEÑAL" UI, A+/A/B/NO_TRADE tiers)   │
+│  9. Signal lifecycle + manual decision journal + theoretical   │
+│     vs. executable performance -- "BUSCAR SEÑAL" UI not built  │
 ├───────────────────────────────────────────────────────────────┤
-│  8. Monte Carlo                                                 │
+│  Statistical discovery pivot: baseline stats -> regime         │
+│  analysis -> FDR-corrected interaction search -> candidacy     │
+│  (4-gate accept/reject bar, reuses layers 4-7 unchanged)        │
 ├───────────────────────────────────────────────────────────────┤
-│  7. Walk-forward analysis (this phase)                          │
+│  8. Monte Carlo -- not built                                    │
+├───────────────────────────────────────────────────────────────┤
+│  7. Walk-forward analysis                                       │
 ├───────────────────────────────────────────────────────────────┤
 │  6. Robustness / parameter-sensitivity sweeps                   │
 ├───────────────────────────────────────────────────────────────┤
-│  5. Baseline strategies (H1-H10)                                │
+│  5. Baseline strategies (H1-H20)                                 │
 ├───────────────────────────────────────────────────────────────┤
 │  4. Backtesting engine                                          │
 ├───────────────────────────────────────────────────────────────┤
@@ -37,6 +42,12 @@ layer in isolation.
 └───────────────────────────────────────────────────────────────┘
 ```
 
+The statistical-discovery pivot sits beside layers 5-7, not above them:
+it is a second, systematic way of proposing a condition (instead of a
+hand-designed H1-H20 strategy), but every condition it proposes is
+judged by the SAME layer-4/6/7 machinery, unchanged — see
+`research/candidacy.py` below.
+
 ## Repository layout
 
 ```
@@ -44,7 +55,8 @@ src/otc_research/
   config.py              # loads config/config.yaml, validates it
   db/
     models.py            # SQLAlchemy models: Candle, DataQualityIssue,
-                          # Feature, Hypothesis, Signal
+                          # Feature, Hypothesis, BacktestRun, Signal,
+                          # SignalDecision, ConditionTrial
     session.py           # engine/session factory, init_db()
   data/
     sources/
@@ -69,8 +81,29 @@ src/otc_research/
     robustness.py             # parameter/expiry/time-window sweeps + fragility verdict
     walkforward.py             # sliding train/test folds + mean/dispersion/worst-fold summary
   strategies/
-    h1_streak.py .. h15_inside_bar_breakout.py  # one Strategy implementation per hypothesis (STRATEGIES.md)
+    h1_streak.py .. h20_donchian_atr.py  # one Strategy implementation per hypothesis (STRATEGIES.md)
     __init__.py               # BASELINE_STRATEGIES registry (H9 excluded, needs explicit params)
+  research/                 # statistical-discovery pivot (see STRATEGIES.md's
+                             # "Pivot" section) -- reuses backtest/* unchanged
+    dataset.py               # point-in-time feature+target table builder (per pair/timeframe/horizon)
+    regimes.py                # trend-strength x volatility-state regime classification
+    baseline.py                # unconditional/conditional/regime win-rate stats, Wilson CI
+    discovery.py                # systematic 2-3-way condition search + Benjamini-Hochberg FDR correction
+    candidacy.py                 # the fixed 4-gate accept/reject bar (sample size/margin ->
+                                  # robustness -> walk-forward -> TEST, touched once)
+    condition_strategy.py         # adapts a discovered Condition into the Strategy protocol
+    models.py                     # logistic regression -> random forest -> gradient boosting,
+                                   # gated behind discovery finding something significant (no neural nets)
+  signals/                   # Phase 9: manual-review signal lifecycle -- never places a trade
+    service.py                 # create_signal / send_notification / refresh_expired_signals
+    confidence.py                # fixed ALTA/MEDIA/BAJA rule
+    decisions.py                  # record_decision (TOOK_TRADE/DID_NOT_TAKE/ARRIVED_LATE)
+    performance.py                 # theoretical vs. executable performance comparison
+    formatting.py                   # format_signal_message() (one template, every provider)
+    latency.py                       # latency_to_generate / latency_to_notify (on demand, not stored)
+  notifications/              # Phase 9: delivery channels
+    base.py                     # NotificationProvider ABC
+    console_provider.py          # ConsoleNotificationProvider (the only channel wired up so far)
   utils/
     logging.py            # shared logger (stderr + logs/otc_research.log)
     timeframes.py          # timeframe string <-> seconds (dependency-free, avoids import cycles)
@@ -78,11 +111,16 @@ scripts/
   init_db.py             # create schema
   import_csv.py          # CLI to ingest a CSV file
   fetch_market_data.py    # CLI to fetch/backfill real candles from the configured provider
-  compute_features.py     # CLI to compute Phase 3 features from stored candles
+  compute_features.py     # CLI to compute point-in-time features from stored candles
   run_backtest.py         # CLI to run one strategy through the Phase 4 backtesting engine
   run_baseline_backtests.py # CLI to run every Phase 5 baseline strategy at once (train/validation only)
   run_robustness_sweep.py  # CLI for Phase 6 parameter/expiry/time-window sweeps
   run_walk_forward.py      # CLI for Phase 7 walk-forward analysis
+  run_research_pipeline.py  # CLI: the full statistical-discovery pipeline against real data,
+                             # reports the A/B/C/D scientific conclusion (see STRATEGIES.md)
+  replay_signals_historical.py # CLI: proves the Phase 9 signal lifecycle against already-ingested
+                                # candles in timestamp order -- explicitly not a live run
+  record_signal_decision.py  # CLI: the one write path for a manual TOOK_TRADE/DID_NOT_TAKE/ARRIVED_LATE decision
   seed_hypotheses.py      # registers the hypotheses in STRATEGIES.md
 config/
   config.yaml            # risk limits, signal thresholds, pairs, DB url
@@ -160,15 +198,59 @@ restructuring what already exists.
    optimistic / 47.2% realistic, and under the realistic scenario 0 of 12
    folds showed a statistically credible edge — see STRATEGIES.md.
 
-Everything past this point (Monte Carlo testing, signals) does not exist
-yet and must be built strictly on top of validated `Feature` rows and
-this engine — never by recomputing indicators ad hoc or reading candles
-directly, so that every strategy sees the same, auditable numbers and
-validation can't be silently bypassed. The eventual "BUSCAR SEÑAL" UI
-(Phase 9) is a thin layer that triggers this same fetch → validate →
-store → feature → strategy-evaluation path on demand, then either shows
-a signal or "NO HAY SEÑAL" — see SIGNAL_ENGINE.md. It never places an
-order.
+9. **Statistical discovery pivot** (`otc_research.research`, see
+   STRATEGIES.md's "Pivot" section): after H1-H20 (hand-designed
+   hypotheses) showed no credible edge at any timeframe,
+   `research.dataset.build_dataset()` builds a point-in-time
+   feature+target table per pair/timeframe from the same `Candle`/
+   `Feature` rows (never recomputed), `research.baseline` computes
+   unconditional/conditional/regime win-rate statistics, and
+   `research.discovery.run_discovery()` runs a systematic 2-3-way
+   condition search over TRAIN only — every combination tried is logged
+   to `ConditionTrial` before Benjamini-Hochberg FDR correction decides
+   which ones are even eligible to be considered. A condition that
+   survives correction is wrapped by `research.condition_strategy.
+   ConditionStrategy` into the SAME `Strategy` protocol H1-H20 used, so
+   `research.candidacy.evaluate_candidacy()` can re-judge it through the
+   unmodified layer-4/6/7 machinery (sample size/margin → robustness
+   sweep → walk-forward → TEST, touched at most once) — a discovered
+   condition gets no lighter-weight path than a hand-designed one.
+   `research.models` (logistic regression → random forest → gradient
+   boosting; no neural networks) is only invoked if discovery finds
+   something FDR-significant. `scripts/run_research_pipeline.py` runs
+   the whole thing and reports one of four scientific conclusions
+   (A: robust edge / B: promising but insufficient / C: edge vanishes
+   out-of-sample / D: no evidence) — the first real run found **B**, see
+   STRATEGIES.md for the full result and why the naive discovery target
+   and the realistic-execution simulator disagreed so sharply.
+10. **Signal lifecycle** (`otc_research.signals`, `otc_research.
+    notifications` — Phase 9, SIGNAL_ENGINE.md): a strategy or model's
+    decision becomes a persisted `Signal` row
+    (`signals.service.create_signal`, which computes break-even win
+    rate, margin, expectancy, and a fixed ALTA/MEDIA/BAJA confidence
+    label once, never left for a template to re-derive), delivered
+    through a `NotificationProvider` (only `ConsoleNotificationProvider`
+    exists today) via `signals.service.send_notification` — which
+    refuses to send past the signal's own entry window rather than
+    notifying late. A person's real, manual decision
+    (`signals.decisions.record_decision`) is recorded separately from
+    the signal itself, and `signals.performance` reports theoretical
+    (every signal) vs. executable (`TOOK_TRADE` only) performance side
+    by side. **This layer never places a trade and has no live-execution
+    path** — it has only been run against a historical replay
+    (`scripts/replay_signals_historical.py`), never a live feed, both
+    because the live poller doesn't exist yet and because Step 7 found
+    no condition worth watching live in the first place.
+
+Everything past this point (Monte Carlo, the dashboard, a live data
+poller, and the "BUSCAR SEÑAL" UI itself) does not exist yet and must be
+built strictly on top of validated `Feature` rows and this engine — never
+by recomputing indicators ad hoc or reading candles directly, so that
+every strategy sees the same, auditable numbers and validation can't be
+silently bypassed. The eventual "BUSCAR SEÑAL" UI is a thin layer that
+triggers this same fetch → validate → store → feature → strategy-
+evaluation → signal-lifecycle path on demand, then either shows a signal
+or "NO HAY SEÑAL" — see SIGNAL_ENGINE.md. It never places an order.
 
 ## Why not Pocket Option OTC
 

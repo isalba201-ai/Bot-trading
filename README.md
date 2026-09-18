@@ -71,41 +71,52 @@ scenarios reporting Wilson-CI-grounded win rate/expectancy, the H1-H10
 baseline strategies themselves, a robustness/sensitivity sweep runner,
 and walk-forward analysis (mean/dispersion/worst-fold win rate across
 sliding time folds) (see [BACKTESTING.md](BACKTESTING.md) /
-[STRATEGIES.md](STRATEGIES.md)). **20 hypotheses total (H1-H20) have
-actually been run against real EUR/USD, GBP/USD, and USD/JPY data**
-(1m/5m/1h, via Twelve Data) — see STRATEGIES.md's "What real data has
+[STRATEGIES.md](STRATEGIES.md)). **20 hand-designed hypotheses total
+(H1-H20) have been run against real EUR/USD, GBP/USD, and USD/JPY data**
+(1m/5m/15m/1h, via Twelve Data) — see STRATEGIES.md's "What real data has
 actually shown so far" for the honest result: **no credible, replicated
-edge on any of them.** H4 looked promising at first; a robustness sweep
-and a 12-fold walk-forward showed it doesn't hold up across time periods
-or realistic execution costs. H11-H15 (MACD, CCI, RCI, engulfing,
-inside-bar breakout) turned up two border-line hits (CCI and RCI on
-GBP/USD) that did not replicate on that pair's own validation split — a
-clean demonstration of exactly the multiple-testing trap BACKTESTING.md
-warns about. **H16-H20 (combined multi-indicator strategies at 1- and
-5-minute, binary-options-length expiries) found the most important
-result of the whole investigation: going to shorter timeframes makes
-execution costs matter MORE, not less** — realistic-scenario win rates
-that erode by 15-25 points at 1h eroded by 30-50 points at 1-5m, and a
-typical binary-options payout (0.80-0.90) requires a 52.6%-55.6%
-break-even win rate in the first place, not 50% — see
-`backtest/metrics.py::break_even_win_rate`. Monte Carlo testing and the
-on-demand "BUSCAR SEÑAL" UI — everything the signal engine needs to show
-a non-fabricated confidence number — are **not built yet**.
+edge on any of them**, and the shorter the expiry, the worse the
+execution-cost problem gets, not better.
+
+**The project then pivoted away from hand-picking indicator combinations
+and toward two things built together**: (a) a systematic, FDR-corrected
+statistical-discovery pipeline (`otc_research/research/` — baseline
+stats → regime analysis → a combinatorial interaction search → a fixed
+4-gate accept/reject bar that re-judges every discovered condition
+through the SAME unmodified backtest/robustness/walk-forward engine
+H1-H20 used) instead of more one-off hypotheses, and (b) a **manual-
+review signal lifecycle** (`otc_research/signals/`,
+`otc_research/notifications/` — see [SIGNAL_ENGINE.md](SIGNAL_ENGINE.md))
+that turns a strategy's decision into a persisted, statistically-grounded
+proposal, delivers it, and records a person's real manual decision
+separately from the theoretical read — **this layer has no automated
+execution path and never will.** The first full research run
+(`scripts/run_research_pipeline.py`, real EUR/USD/GBP/USD/USD/JPY data,
+28,800 condition trials) found conclusion **B — promising but
+insufficient**: statistically significant patterns exist in a naive,
+frictionless sense, but none survived re-evaluation through the realistic
+execution simulator — see STRATEGIES.md's "Pivot" section for the full
+result, including why. The signal lifecycle has been verified end-to-end
+only against a historical replay (`scripts/replay_signals_historical.py`),
+never a live feed — both because no live poller exists yet and because
+nothing has cleared the bar to be worth watching live. Monte Carlo
+testing and the on-demand "BUSCAR SEÑAL" UI are **not built yet**.
 
 | Phase | Scope | Status |
 |---|---|---|
 | 1 | Architecture + data storage | Done |
 | 2 | Data validation | Done |
-| 3 | Feature engineering | Done |
+| 3 | Feature engineering (v4: momentum, trend, mean-reversion, volatility, position-in-range) | Done |
 | 4 | Backtesting engine | Done |
-| 5 | Baseline strategies (H1-H10) | Done — run against real EUR/USD data, no robust edge found yet |
+| 5 | Hand-designed baseline strategies (H1-H20) | Done — no robust edge found on real data at any timeframe tested |
 | 6 | Robustness testing | Done |
 | 7 | Walk-forward analysis | Done |
+| Pivot | Statistical discovery (baseline/regime/interaction search, FDR correction, candidacy gate, gated ML) | Done — first real run: conclusion B (promising but insufficient), see STRATEGIES.md |
+| 9 | Signal lifecycle (persistence, notifications, manual decisions, theoretical vs. executable performance) | Done — verified via historical replay only, never live |
 | 8 | Monte Carlo | Not started |
-| 9 | Signal engine + "BUSCAR SEÑAL" UI | Not started |
-| 10 | Paper trading / signal journal reconciliation | Not started |
-| 11 | Dashboard | Not started |
-| 12 | Machine learning (only if it adds value) | Not started |
+| 9b | "BUSCAR SEÑAL" UI + live data poller | Not started |
+| 10 | Dashboard | Not started |
+| 12 | Machine learning | Done (gated — `research/models.py`, no neural networks) |
 
 ## Install
 
@@ -221,6 +232,38 @@ reports mean, dispersion, and worst-fold win rate across folds — see
 BACKTESTING.md's walk-forward rule and STRATEGIES.md for H4's real
 result (mean 56.9% optimistic / 47.2% realistic across 12 folds, 0/12
 folds showing an edge once realistic costs are applied).
+
+## Run the statistical-discovery pipeline
+
+```bash
+python scripts/run_research_pipeline.py
+```
+
+Runs `research/dataset.py` → `research/baseline.py` → `research/discovery.py`
+(FDR-corrected interaction search, TRAIN only) → `research/candidacy.py`
+(the fixed 4-gate accept/reject bar) → `research/models.py` (only if
+discovery finds something) against already-ingested real data, and prints
+one of four scientific conclusions (A: robust edge / B: promising but
+insufficient / C: edge vanishes out-of-sample / D: no evidence) — see
+STRATEGIES.md's "Pivot" section for the first run's full result.
+
+## Historical signal-lifecycle replay (not live)
+
+```bash
+python scripts/replay_signals_historical.py --pair EUR_USD --timeframe 1h
+```
+
+Feeds already-ingested candles through `signals.service.create_signal` →
+`send_notification` → `signals.decisions.record_decision` →
+`signals.performance` in timestamp order, proving the whole Phase 9
+lifecycle end to end. Explicitly not a live run — see SIGNAL_ENGINE.md.
+
+Record a real manual decision about a generated signal:
+
+```bash
+python scripts/record_signal_decision.py --signal-id 42 \
+    --decision TOOK_TRADE --entry-price-actual 1.0842 --payout-observed 0.82
+```
 
 ## Import a CSV file instead
 

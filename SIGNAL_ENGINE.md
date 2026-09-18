@@ -1,9 +1,30 @@
-# Signal engine (planned — Phase 9, not built yet)
+# Signal engine (Phase 9)
 
-**Status: this document specifies the target design. None of the UI, the
-"BUSCAR SEÑAL" flow, or signal generation exists in code yet.** It is
-written now, before that code, so the rules — especially around what a
-confidence number is allowed to mean — are fixed in advance.
+**Status: the signal data model and lifecycle backend are implemented
+and tested (`otc_research/signals/`, `otc_research/notifications/` —
+see the pivot plan's sub-phase B,
+`/root/.claude/plans/sequential-sparking-candle.md`); the "BUSCAR SEÑAL"
+UI and any live data poller are still NOT built.** What exists today:
+`signals.service.create_signal`/`send_notification`/
+`refresh_expired_signals` (the PENDING/EXPIRED/DECIDED lifecycle),
+`notifications.console_provider.ConsoleNotificationProvider` (the only
+channel wired up so far, per this document's own "one non-negotiable
+rule" below — no channel is added until it's actually wanted),
+`signals.decisions.record_decision` (the manual TOOK_TRADE/DID_NOT_TAKE/
+ARRIVED_LATE journal), and `signals.performance.theoretical_performance`/
+`executable_performance` (the two read side-by-side, per this document's
+"Signal journal" section). All of it has been verified only against a
+**historical replay** (`scripts/replay_signals_historical.py`) fed
+already-ingested real candles in timestamp order — explicitly not a live
+run. It is not pointed at a live feed for a structural reason, not just
+a sequencing one: Step 7's research run (STRATEGIES.md) found no
+condition that survived realistic-execution re-validation, so nothing in
+this codebase is currently entitled to a **ROBUST EDGE** classification,
+and per this document's own rule, nothing below that bar may produce a
+live signal. The "BUSCAR SEÑAL" UI, the live OANDA/Twelve Data polling
+loop, and the pair/timeframe selection flow described below remain
+unbuilt targets, not because the plumbing isn't ready, but because there
+is nothing yet worth pointing it at.
 
 ## What triggers analysis
 
@@ -80,6 +101,16 @@ inputs that produced it:
 - historical_sample_size, historical_win_rate, win_rate_ci_low/high, expectancy
 - features_snapshot, conditions_met, conditions_summary
 - market_regime, session, day_of_week, hour
+- **(Phase 9)** `signal_ref` (human-readable id), `data_received_at`/
+  `sent_at`/`valid_from`/`valid_until` (the four timestamps latency is
+  computed from — `signals.latency`), `status`
+  (PENDING/EXPIRED/DECIDED), `break_even_win_rate`/
+  `margin_over_break_even` (payout-aware, from `backtest.metrics`),
+  `payout_is_estimated` (true whenever the real broker payout at signal
+  time isn't known), `confidence_label` (ALTA/MEDIA/BAJA — the fixed rule
+  in `signals.confidence`, never hand-waved per signal), and
+  `reasons_rejected` (the conditions that did NOT hold, alongside
+  `conditions_met`).
 
 Once the target horizon has elapsed, the actual outcome is fetched from real
 market data and written back (`result`, `pnl`, `expiry_price`) — never
@@ -87,6 +118,33 @@ inferred, never estimated. This is what makes it possible to later compare
 "predicted historical probability" against "what actually happened" and
 measure, with real evidence, whether the system's edge claims hold up. No
 row is ever edited to make a past signal look better after the fact.
+
+## Manual decision journal and theoretical vs. executable performance
+
+A signal is a proposal, not an order — **this system has no automated
+execution path and never will** (see README.md). What a person actually
+does about a signal is recorded separately, in its own
+`signal_decisions` table (`signals.decisions.record_decision`, the one
+write path — a CLI today, `scripts/record_signal_decision.py`, since
+there is no UI yet): `TOOK_TRADE`, `DID_NOT_TAKE`, or `ARRIVED_LATE`
+(the last one assigned automatically whenever a `TOOK_TRADE` claim is
+recorded after the signal's own `valid_until` has already passed — an
+explicit `DID_NOT_TAKE` is never overridden this way).
+
+`signals.performance` reports two aggregates over the same signal
+history, always side by side, never blended into one number:
+
+- **Theoretical** — every signal with a resolved outcome, as if filled
+  exactly at `entry_price`/`generated_at` (what the backtest engine
+  already computes for a strategy).
+- **Executable** — filtered to `TOOK_TRADE` decisions only, using the
+  decision's own recorded result/pnl when available, falling back to the
+  theoretical read (and flagging that it did) only when the person never
+  recorded their own outcome.
+
+The gap between the two is the honest answer to "does this survive
+becoming a real, manually-executed habit" — it only accumulates meaning
+once the system has been running live for a while, which it is not yet.
 
 ## What this system will never show or say
 
