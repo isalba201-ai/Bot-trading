@@ -80,8 +80,12 @@ MODEL_MIN_VALIDATION_N = 30
 MODEL_PROBABILITY_THRESHOLD = 0.5
 #: Perturbation grid for the model's own robustness gate (2): sensitivity
 #: to the decision threshold, the model-specific analogue of widening a
-#: discovered condition's bin edges.
-MODEL_THRESHOLD_PERTURBATION_GRID: tuple[float, ...] = (0.40, 0.45, 0.50, 0.55, 0.60)
+#: discovered condition's bin edges. Deliberately only 3 points (not the
+#: 5 ConditionStrategy uses): each point re-walks the full candle series
+#: calling predict_proba once per candle, which is far more expensive per
+#: run_backtest call than a condition's plain comparison -- see the
+#: measured timing in STEP10_EXTENDED_SEARCH_REPORT.md.
+MODEL_THRESHOLD_PERTURBATION_GRID: tuple[float, ...] = (0.45, 0.50, 0.55)
 
 
 def _walk_forward_folds(session, asset, timeframe, backtest_config, *, n_folds=N_WALK_FORWARD_FOLDS):
@@ -134,9 +138,20 @@ def _run_discovery_3way(session, train_df, asset, timeframe, run_id_prefix):
 def _run_ml_sweep(session, train_df, validation_df, asset, timeframe):
     """Independent ML model comparison for every (horizon, direction) --
     not gated behind discovery finding anything first (per the user's
-    explicit request to run the model against all the real data). Returns
-    every promising (VALIDATION CI-low clears break-even, adequate
-    coverage) fit, ready for candidacy escalation by the caller.
+    explicit request to run the model against all the real data). All 3
+    families are fit and logged for every (horizon, target_col) -- but
+    only the SINGLE BEST-performing promising family per target_col is
+    escalated to the full candidacy funnel (never all 3 independently):
+    each candidacy call re-walks the full candle series calling
+    predict_proba per candle across a TRAIN run, a robustness sweep, and
+    walk-forward folds, which measured far more expensive per call than a
+    discovered condition's plain comparison (see
+    STEP10_EXTENDED_SEARCH_REPORT.md) -- escalating all 3 families would
+    make the full 8-dataset sweep impractically slow for no methodological
+    gain, since "does ML confirm an edge here" only needs the best
+    candidate checked, matching Step 7's original "ML is confirmatory,
+    not an independent free search" principle, just applied per target
+    instead of only the single overall best per dataset.
     """
     break_even = break_even_win_rate(DEFAULT_PAYOUT)
     promising = []
@@ -156,6 +171,7 @@ def _run_ml_sweep(session, train_df, validation_df, asset, timeframe):
                 logger.info("  ML %-14s skipped: %s", target_col, exc)
                 continue
 
+            best_promising = None
             for fit in fits:
                 stat = fit.validation_stat_at_threshold
                 logger.info(
@@ -164,11 +180,16 @@ def _run_ml_sweep(session, train_df, validation_df, asset, timeframe):
                     f"{stat.win_rate:.4f}" if stat.win_rate is not None else "n/a",
                     fit.validation_coverage,
                 )
-                if stat.n >= MODEL_MIN_VALIDATION_N and stat.ci_low is not None and stat.ci_low > break_even:
-                    promising.append({
-                        "fit": fit, "target_col": target_col, "horizon": horizon,
-                        "direction": direction, "expiry_seconds": expiry_seconds,
-                    })
+                is_promising = (
+                    stat.n >= MODEL_MIN_VALIDATION_N and stat.ci_low is not None and stat.ci_low > break_even
+                )
+                if is_promising and (best_promising is None or stat.win_rate > best_promising.validation_stat_at_threshold.win_rate):
+                    best_promising = fit
+            if best_promising is not None:
+                promising.append({
+                    "fit": best_promising, "target_col": target_col, "horizon": horizon,
+                    "direction": direction, "expiry_seconds": expiry_seconds,
+                })
     return promising
 
 

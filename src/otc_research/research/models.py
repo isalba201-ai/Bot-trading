@@ -39,7 +39,16 @@ def _make_model(family: str, *, seed: int = 0):
     if family == "logistic_regression":
         return LogisticRegression(max_iter=1000)
     if family == "random_forest":
-        return RandomForestClassifier(n_estimators=200, max_depth=6, random_state=seed)
+        # n_estimators kept modest (50, not the more typical 200-500): a
+        # ModelStrategy built from this calls predict_proba once per
+        # candle inside the backtest simulator's per-candle loop, and
+        # tree-ensemble inference cost scales with tree count -- a
+        # candidacy funnel call (TRAIN + a robustness sweep + walk-forward
+        # folds + TEST) re-walks the full candle series many times, so
+        # this is a real backtest-runtime lever, not just a training-time
+        # one. See STEP10_EXTENDED_SEARCH_REPORT.md for the measured
+        # per-call cost this was tuned against.
+        return RandomForestClassifier(n_estimators=50, max_depth=6, random_state=seed)
     if family == "gradient_boosting":
         return GradientBoostingClassifier(random_state=seed)
     raise ValueError(f"unknown model family {family!r}; expected one of {MODEL_FAMILIES}")
