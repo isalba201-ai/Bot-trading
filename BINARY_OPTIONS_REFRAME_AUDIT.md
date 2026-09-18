@@ -1,16 +1,19 @@
 # Binary-options reframing audit
 
-**Status: this document is a written compatibility audit, not a new
-research run.** It responds to an explicit correction from the user:
-this project's real objective has never been a profitable Forex trading
-strategy — it is a research engine for **manual CALL/PUT binary-options
-signals**, ultimately for Pocket Option OTC, with real Forex serving only
-as a research laboratory when a real, authorized dataset is needed. No
-pipeline was re-run, no new candidates were evaluated, and no number
-from Step 7/8 was silently reinterpreted as if it meant something else —
-per the user's explicit instruction, anything not actually recomputed
-under a corrected methodology is marked `NO EVALUADO` in Section 16's
-table, not estimated or reused across methodologies as if equivalent.
+**Status: the audit (Sections 1-16) was written first, as a compatibility
+review with no new runs; the correction it specifies has since been
+implemented in code (`research/candidacy.py`, `backtest/execution.py`)
+and RE-RUN against every FDR-significant, winning-direction condition
+already logged by Step 7 and Step 8d — see the "Corrected re-run
+results" section after Section 16 for what that actually found. Nothing
+below Section 16 was fabricated or reused across methodologies; every
+number in the new section came from an actual `evaluate_candidacy` call
+under the corrected model.** This document responds to an explicit
+correction from the user: this project's real objective has never been a
+profitable Forex trading strategy — it is a research engine for
+**manual CALL/PUT binary-options signals**, ultimately for Pocket Option
+OTC, with real Forex serving only as a research laboratory when a real,
+authorized dataset is needed.
 
 **One correction accepted up front, stated plainly because the user
 asked to be told if their own framing had an error too**: their
@@ -453,21 +456,99 @@ binary target above): triple-barrier/MFE-MAE as descriptive features
 
 ---
 
+## Corrected re-run results (post-audit — actually executed)
+
+`scripts/run_candidacy_corrected_rerun.py` re-evaluated every FDR-
+significant, winning-direction condition already logged by Step 7
+(113) and Step 8d's session-conditioned (119) and triple-barrier (28)
+runs — **260 evaluations total** — through the corrected
+`evaluate_candidacy` (delay-only scenario, `min_folds_sampled=3`).
+Discovery was NOT re-run (the naive win rates/FDR flags don't depend on
+the execution model — Section 1/12).
+
+| Gate reached | Old model (Step 7 only, n=120) | Corrected model (n=260) |
+|---|---|---|
+| Rejected at gate 1 (sample size/margin) | 119 (99.2%) | 185 (71.2%) |
+| Rejected at gate 2 (robustness) | 1 (0.8%) | 30 (11.5%) |
+| Rejected at gate 3 (walk-forward) | 0 | 40 (15.4%) |
+| **Rejected at gate 4 (TEST)** | 0 | **5 (1.9%)** |
+| Accepted | 0 | 0 |
+
+**Exactly as the audit predicted: far more conditions now clear the
+early gates (28.8% pass gate 1 vs. 0.8% before), and — for the first
+time with a properly-validated walk-forward — five conditions reached
+TEST instead of one.** Still zero accepted; the funnel discipline held.
+
+**The single most notable result of the entire project so far** (not
+accepted, but the closest anything has come): **EUR_USD/15m, CALL, h=5,
+`hour_utc∈(5.75,11] AND trading_session_code∈(-0.001,1]`** (a London-
+session-window condition, from the session-conditioned run):
+
+- Gate 1: TRAIN n=372, win rate **65.3%** (CI low 60.4%) — margin +11.3pp.
+- Gate 2: robustness — **passed**, `consistent_direction`.
+- Gate 3: walk-forward — **passed genuinely this time** (not a sparse-
+  fold artifact): **4 of 4 folds sufficiently sampled**, win rates
+  75.0% / 64.6% / 70.8% / 59.3% — every single fold, including the
+  worst, clears break-even (54.05%).
+- Gate 4 (TEST): n=120, win rate **60.0%**, CI **[51.1%, 68.3%]**.
+  **Rejected** — but not by reversal: 60.0% is directionally consistent
+  with TRAIN (65.3%) and every walk-forward fold (59-75%). It fails only
+  because the CI lower bound (51.1%) sits just below break-even (54.05%)
+  — a narrow miss on interval width/sample size, not a sign flip. This
+  is categorically different from every other TEST-reaching candidate
+  found so far (see below) and is the strongest candidate this project
+  has produced. **Still correctly rejected** — the bar is
+  `CI_low > break_even`, not "close" — but it is the clearest, most
+  legitimate lead for follow-up: more EUR/USD 15m history (narrower CI,
+  same threshold) would be a principled way to actually resolve it, as
+  opposed to relaxing the bar.
+
+**A second, illustrative TEST-reaching case, this time from the triple-
+barrier run**: EUR_USD/5m, CALL, `adx_14∈(34.99,98.52] AND
+cci_20∈(-666.7,-76.22]` on the ATR-scaled barrier target — TRAIN win rate
+**79.5%** (n=146), walk-forward 3 of 4 folds strong (85.0%/79.2%/79.2%),
+one fold right at break-even (54.3%) — and then **TEST collapsed to
+exactly 50.0%** (n=68, CI [38.4%, 61.6%]), a clean reversal. A second,
+independent demonstration (after Step 8d's original day-of-week case) of
+why TEST-once discipline is load-bearing, this time surviving a properly
+validated walk-forward.
+
+**Three more TEST-reaching candidates (all day-of-week-conditioned, all
+CALL, USD_JPY/5m/1m) hit a different, structural problem**: their TEST
+split had **zero matching rows** (`sample_size=0`) — the day-of-week ×
+narrow-feature-bin combination was so sparse it simply never occurred in
+the ~993-row TEST window. These are correctly rejected (no win rate to
+even evaluate), but for a reason distinct from overfitting-reversal:
+**very fine-grained categorical conditioning (day-of-week specifically)
+can produce conditions too sparse for this project's TEST split size to
+ever validate at all**, regardless of whether the underlying pattern is
+real — worth a note for any future day-of-week hypothesis: check TEST-
+split occurrence count as its own pre-registered feasibility gate, not
+just TRAIN sample size.
+
+**Honest bottom line, unchanged in substance from Section 14 below**:
+still no accepted candidate. The correction surfaced real, better-
+supported signal (the London-session EUR_USD/15m condition is a
+genuinely stronger, more validated result than anything found before
+this correction) — but "closest miss yet" is not "candidate," and the
+result stays a negative one until something actually clears
+`CI_low > break_even` on an untouched TEST split.
+
 ## Tabla resumen
 
-Per the user's explicit instruction: no value below is invented or
-reused across methodologies as if equivalent. Anything requiring the
-Section 8 execution-model correction, and not yet actually recomputed
-under it, is `NO EVALUADO` — including for the one candidate that
-reached TEST, since even its earlier gates were passed under the
-slippage-contaminated model.
+Per the user's explicit instruction: no value is invented or reused
+across methodologies as if equivalent. The five rows below marked
+"corrected re-run" come directly from the actual `evaluate_candidacy`
+calls above; anything else not yet computed stays `NO EVALUADO`.
 
 | Hipótesis | Dataset | Target binario | Vencimiento | n | WIN% | CI | Payout | Break-even | EV | FDR | Robustez | Walk-forward | TEST | Estado |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| USD_JPY/5m CALL h=5, `return_5∈(-0.762,-0.0309] AND pct_position_in_range_20∈(0.476,0.749]` (Step 7's only gate-2 arrival) | USD_JPY 5m (Forex, laboratory) | naive `call_wins_5` (formula = Section 4's binary target) | 5 velas × 5m = 25 min (señal cada 5 min) | 113 (TRAIN, naive) | 75.2% (raw) | NO EVALUADO (raw CI not computed) | 0.85 | 54.05% | NO EVALUADO bajo modelo corregido | Significativo (run step7-...) | Fragile (bajo el modelo con slippage) | NO EVALUADO bajo modelo corregido | NO EVALUADO | Necesita re-evaluación bajo Sección 8 |
-| USD_JPY/5m PUT h=5, `bb_pct_b_20∈(0.232,0.501] AND day_of_week∈(2,3]` (Step 8d, único que llegó a TEST) | USD_JPY 5m (Forex, laboratory) | naive `put_wins_5` | 5 velas × 5m = 25 min (señal cada 5 min) | 156 (TRAIN) | 63.5% (TRAIN, bajo modelo con slippage) | [55.7%, 70.6%] | 0.85 | 54.05% | NO EVALUADO bajo modelo corregido | Significativo (run step8d-session-...) | consistent_direction | 1/1 folds suficientes (hueco de metodología, Sección 8) | **Rechazado**: 35.5% (n=93, CI [26.5%,45.6%]) | Rechazado en TEST — válido independientemente de la corrección de slippage |
+| EUR_USD/15m CALL h=5, `hour_utc∈(5.75,11] AND trading_session_code∈(-0.001,1]` (corrected re-run, closest miss yet) | EUR_USD 15m (Forex, laboratory) | binario corregido, delay-only (Sección 4/8) | 5 velas × 15m = 75 min (señal cada 15 min) | 372 (TRAIN) | 65.3% (TRAIN) | [60.4%, —] TRAIN; TEST [51.1%, 68.3%] | 0.85 | 54.05% | +0.19 (TRAIN, aprox.) | Significativo (step8d-session-...) | consistent_direction | **4/4 folds suficientes**, 75.0/64.6/70.8/59.3% — todos > break-even | **Rechazado**: 60.0% (n=120), CI_low 51.1% < break-even (no reversión, IC insuficiente) | Rechazado en TEST por margen de IC, no por reversión — mejor resultado del proyecto |
+| EUR_USD/5m CALL, `adx_14∈(34.99,98.52] AND cci_20∈(-666.7,-76.22]` (corrected re-run, triple-barrier target) | EUR_USD 5m (Forex, laboratory) | `triple_barrier_labels` (auxiliar, Sección 9) | 10 velas × 5m = 50 min | 146 (TRAIN) | 79.5% (TRAIN) | TRAIN CI_low 72.2%; TEST CI [38.4%, 61.6%] | 0.85 | 54.05% | +0.47 (TRAIN, aprox.) | Significativo (step8d-triplebarrier-...) | consistent_direction | 4/4 folds suficientes, 85.0/79.2/79.2/54.3% | **Rechazado**: 50.0% (n=68) — reversión clásica desde 79.5% en TRAIN | Rechazado en TEST — reversión, igual que el caso original de Step 8d |
+| USD_JPY/5m CALL (3 condiciones day-of-week, corrected re-run) | USD_JPY 5m/1m (Forex, laboratory) | binario corregido | 1-5 velas | 110-205 (TRAIN) | 66.8-74.6% (TRAIN) | NO EVALUADO (TEST sin datos) | 0.85 | 54.05% | NO EVALUADO | Significativo | consistent_direction | Pasó | **Rechazado**: TEST n=0 — el bin day-of-week×feature nunca aparece en el split TEST | Rechazado por falta estructural de datos en TEST, no por evidencia en contra |
+| USD_JPY/5m CALL h=5, `return_5∈(-0.762,-0.0309] AND pct_position_in_range_20∈(0.476,0.749]` (Step 7's gate-2 arrival, ya superado por el reemplazo con delay-only) | USD_JPY 5m (Forex, laboratory) | naive `call_wins_5` | 5 velas × 5m = 25 min | 113 (TRAIN, naive) | 75.2% (raw) | NO EVALUADO (raw CI not computed) | 0.85 | 54.05% | NO EVALUADO | Significativo (run step7-...) | ver corrida corregida — no repetido individualmente, incluido en los 185/30/40/5 agregados arriba | — | — | Superseded — ver resultados agregados de la corrida corregida arriba |
+| USD_JPY/5m PUT h=5, `bb_pct_b_20∈(0.232,0.501] AND day_of_week∈(2,3]` (Step 8d original, bajo modelo con slippage) | USD_JPY 5m (Forex, laboratory) | naive `put_wins_5` | 5 velas × 5m = 25 min | 156 (TRAIN) | 63.5% (TRAIN, bajo modelo con slippage) | [55.7%, 70.6%] | 0.85 | 54.05% | +0.09 (bajo modelo con slippage, ya retractado) | Significativo (run step8d-session-...) | consistent_direction | 1/1 folds suficientes (hueco cerrado por `min_folds_sampled`, Sección 8) | **Rechazado**: 35.5% (n=93, CI [26.5%,45.6%]) | Rechazado en TEST — hallazgo original que motivó el fix de `min_folds_sampled` |
 | Volatility-contraction no-trade filter | Los 5 datasets (Forex, laboratory) | n/a (filtro, no target direccional) | n/a | NO EVALUADO como P(WIN) directo | NO EVALUADO | NO EVALUADO | n/a | n/a | n/a | No aplica (no es una condición de discovery) | NO EVALUADO | NO EVALUADO | NO EVALUADO | Hipótesis, no evaluada como P(WIN) — solo excursión medida |
-| Cualquier condición bajo modelo de ejecución corregido (delay-only, sin slippage) | Los 5 datasets (Forex, laboratory) | binario corregido (Sección 4) | Por definir (recomendado: 1m/h=1,3,5) | NO EVALUADO | NO EVALUADO | NO EVALUADO | 0.85 (propuesto) | 54.05% | NO EVALUADO | NO EVALUADO (requiere nueva corrida) | NO EVALUADO | NO EVALUADO | NO EVALUADO | Pendiente de aprobación para ejecutar |
 | Cualquier condición sobre datos OTC Pocket Option | N/A — sin fuente autorizada (Sección 11) | N/A | N/A | NO EVALUADO | NO EVALUADO | NO EVALUADO | N/A | N/A | N/A | N/A | N/A | N/A | N/A | Bloqueado — no existe fuente de datos |
 
 ---
@@ -480,8 +561,16 @@ condiciones donde una opción binaria CALL o PUT tenga `P(WIN)`
 suficientemente por encima del break-even del payout disponible? —
 usando Forex real solo como laboratorio, nunca como sustituto de OTC.*
 El error técnico encontrado (costo de slippage estilo Forex aplicado a
-un payoff que no lo tiene) se corrige sin descartar la mayoría del
-trabajo ya hecho — la disciplina FDR/candidacy/TEST-once permanece
-intacta y sigue siendo la barra real. No se ha ejecutado ningún nuevo
-cálculo bajo el modelo corregido; eso queda pendiente de tu aprobación
-para el próximo Step.
+un payoff que no lo tiene) ya fue corregido en el código
+(`research/candidacy.py`, `backtest/execution.py`) y la corrección fue
+**ejecutada** contra las 260 condiciones significativas ya descubiertas
+en Step 7 y Step 8d: muchas más superan la puerta 1 ahora (28.8% vs.
+0.8% antes), y por primera vez cinco condiciones llegaron a TEST con un
+walk-forward genuinamente validado (no un artefacto de fold único). La
+más fuerte — EUR_USD/15m CALL, condicionada por hora/sesión — pasó las
+primeras tres puertas limpiamente y solo fue rechazada en TEST por margen
+de intervalo de confianza, no por reversión de signo: el resultado más
+cercano a una señal válida que ha producido este proyecto hasta ahora.
+**Sigue sin haber ninguna condición aceptada.** La disciplina FDR/
+candidacy/TEST-once permanece intacta y sigue siendo la barra real — no
+se relajó ningún umbral para llegar a este resultado.

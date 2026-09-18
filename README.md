@@ -297,7 +297,11 @@ pytest
   correction: this project's real target is Pocket Option binary-options
   CALL/PUT signals, not a Forex trading strategy — audits Step 7/8 for
   compatibility, retracts a Forex-broker execution-cost assumption that
-  didn't belong, and defines the corrected methodology for the next steps
+  didn't belong (now fixed in `research/candidacy.py`), and reports the
+  corrected re-run's results: still no accepted candidate, but the
+  strongest result this project has produced so far (rejected at TEST on
+  CI margin, not reversal)
+- [SIGNAL_ENGINE.md](SIGNAL_ENGINE.md) — the planned "BUSCAR SEÑAL" flow, signal
 - [SIGNAL_ENGINE.md](SIGNAL_ENGINE.md) — the planned "BUSCAR SEÑAL" flow, signal
   format, and confidence-reporting rules
 - [RISK_MANAGEMENT.md](RISK_MANAGEMENT.md) — no execution, no martingale,

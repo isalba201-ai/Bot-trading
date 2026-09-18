@@ -24,8 +24,15 @@ to a target that doesn't have that cost structure — a binary option's
 payoff has no fill-price/spread concept. That specific attribution is
 retracted; the delay-only findings and everything else in this document
 (the audit numbers, the CALL/PUT symmetry, the TEST-gate case study, the
-literature review, the OTC investigation) stand. See the linked document
-for the full correction and the reframed methodology going forward.
+literature review, the OTC investigation) stand. **The correction has
+since been implemented and re-run** (`research/candidacy.py` now
+defaults to a delay-only scenario): far more conditions now clear the
+early gates, and five reached TEST with a genuinely validated
+walk-forward (vs. one before) — including the strongest result this
+project has produced (EUR_USD/15m, session-conditioned, rejected at TEST
+only on CI margin, not reversal). Still no accepted candidate. See the
+linked document's "Corrected re-run results" section for the full
+numbers.
 
 ---
 
