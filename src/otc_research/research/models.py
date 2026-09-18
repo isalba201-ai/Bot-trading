@@ -60,6 +60,13 @@ class ModelFitResult:
     validation_coverage: float
     probability_threshold: float
     feature_importance: dict[str, float]
+    #: The fitted classifier itself (fit on TRAIN only, never refit) —
+    #: added for Step 10 (``research.model_strategy.ModelStrategy``), so a
+    #: model that shows a promising VALIDATION read can be wrapped as a
+    #: Strategy and pushed through the same candidacy funnel every other
+    #: strategy family here goes through, instead of staying a purely
+    #: informational VALIDATION-only read.
+    model: object
 
 
 def train_val_frames(
@@ -137,6 +144,7 @@ def fit_and_evaluate(
         validation_coverage=coverage,
         probability_threshold=probability_threshold,
         feature_importance=_feature_importance(model, feature_cols),
+        model=model,
     )
 
 
