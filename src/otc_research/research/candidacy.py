@@ -1,11 +1,27 @@
 """Step 5 (approved plan point 6), corrected by
-``BINARY_OPTIONS_REFRAME_AUDIT.md`` Section 8: the pre-registered
-accept/reject bar for a discovered condition — fixed BEFORE any
-condition is evaluated, reusing the EXISTING robustness/walk-forward
-machinery (Phases 6-7) unchanged, pointed at a discovered ``Condition``
-via ``research.condition_strategy.ConditionStrategy`` instead of a
-hand-designed H1-H20 strategy. This gives a discovered condition exactly
-the same rigor H1-H20 already got — no separate, lighter-weight path.
+``BINARY_OPTIONS_REFRAME_AUDIT.md`` Section 8, generalized by the Step 9
+addendum (binary-options backtest of EXISTING strategies): the
+pre-registered accept/reject bar for ANY ``backtest.strategy.Strategy`` —
+a hand-designed H1-H20 strategy, a discovered ``Condition`` wrapped by
+``research.condition_strategy.ConditionStrategy``, or a NO_TRADE-filtered
+variant of either — fixed BEFORE any strategy is evaluated, reusing the
+EXISTING robustness/walk-forward machinery (Phases 6-7) unchanged. This
+gives every strategy family exactly the same rigor, through exactly the
+same four gates — no separate, lighter-weight path for any of them.
+
+``evaluate_candidacy`` itself is strategy-agnostic: it takes a
+``base_strategy`` plus a ``strategy_factory``/``perturbation_param_grid``
+pair for gate 2's robustness sweep (reusing
+``backtest.robustness.run_parameter_sweep`` exactly as Phase 6 already did
+for H4's own sweep). ``evaluate_condition_candidacy`` is a thin,
+behavior-preserving wrapper kept for the discovered-``Condition`` call
+shape every existing caller already uses (``scripts/
+run_candidacy_corrected_rerun.py``, ``run_step8d_research.py``,
+``run_research_pipeline.py``) — it builds the exact same
+``ConditionStrategy``-based factory/grid the old hardcoded
+``evaluate_candidacy`` used to build internally, so every already-reported
+verdict (the 260-evaluation corrected rerun included) is reproduced
+byte-for-byte; see ``tests/test_research_candidacy.py``'s regression test.
 
 **Execution model, corrected**: every gate below evaluates the condition
 under a single ``delay_only_scenario`` (zero slippage, zero signal-drop)
@@ -48,7 +64,7 @@ so TEST is never reached unless everything else already passed.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Sequence
+from typing import Callable, Mapping, Sequence
 
 from sqlalchemy.orm import Session
 
@@ -60,6 +76,7 @@ from otc_research.backtest.robustness import (
     evaluate_robustness,
     run_parameter_sweep,
 )
+from otc_research.backtest.strategy import Strategy
 from otc_research.backtest.walkforward import (
     WalkForwardFold,
     WalkForwardSummary,
@@ -119,9 +136,7 @@ class CandidacyVerdict:
 
 def evaluate_candidacy(
     session: Session,
-    condition: Condition,
-    direction: str,
-    expiry_seconds: int,
+    base_strategy: Strategy,
     asset: str,
     timeframe: str,
     backtest_config: BacktestConfig,
@@ -129,16 +144,29 @@ def evaluate_candidacy(
     feature_set_version: str,
     payout: float,
     walk_forward_folds: Sequence[WalkForwardFold],
+    strategy_factory: Callable[..., Strategy],
+    perturbation_param_grid: Sequence[Mapping[str, object]],
     thresholds: CandidacyThresholds = CandidacyThresholds(),
     scenario: ExecutionScenario | None = None,
     rng_seed: int = 0,
-    label: str | None = None,
 ) -> CandidacyVerdict:
-    """``walk_forward_folds`` is the caller's responsibility to generate
+    """Strategy-agnostic: ``base_strategy`` is evaluated as-is through
+    gates 1, 3, 4; gate 2's parameter-sensitivity sweep calls
+    ``strategy_factory(**params)`` once per ``params`` in
+    ``perturbation_param_grid`` (exactly ``backtest.robustness.
+    run_parameter_sweep``'s own existing generic contract — the same
+    mechanism Phase 6 used for H4's sweep). Passing a ``base_strategy``
+    that isn't actually reproduced by
+    ``strategy_factory(**perturbation_param_grid[i])`` for the
+    "no perturbation" grid point is a caller bug, not something this
+    function can detect — see ``evaluate_condition_candidacy`` for the
+    discovered-``Condition`` construction that guarantees this.
+
+    ``walk_forward_folds`` is the caller's responsibility to generate
     (``backtest.walkforward.generate_folds``) — candidacy.py has no
     opinion about fold spans/steps, same separation of concerns as every
     other module in this package. ``payout`` is the fixed binary-options
-    payout the condition is judged against (see ``BACKTESTING.md``); it is
+    payout the strategy is judged against (see ``BACKTESTING.md``); it is
     not looked up from anywhere, since the real broker payout at signal
     time is not known ahead of a live run (see ``Signal.payout_is_estimated``
     in the approved plan's point 9). ``scenario`` defaults to
@@ -153,7 +181,6 @@ def evaluate_candidacy(
     active_scenario = scenario if scenario is not None else delay_only_scenario(DEFAULT_ENTRY_DELAY_CANDLES)
     scenario_name = active_scenario.name
     scenarios = [active_scenario]
-    base_strategy = ConditionStrategy(condition, direction, expiry_seconds, label=label)
 
     # --- gate 1: TRAIN sample size + payout-adjusted margin ---------------
     train_result = run_backtest(
@@ -207,20 +234,10 @@ def evaluate_candidacy(
         )
 
     # --- gate 2: TRAIN parameter-sensitivity sweep -------------------------
-    def factory(edge_perturbation_pct: float) -> ConditionStrategy:
-        return ConditionStrategy(
-            condition,
-            direction,
-            expiry_seconds,
-            edge_perturbation_pct=edge_perturbation_pct,
-            label=label,
-        )
-
-    param_grid = [{"edge_perturbation_pct": pct} for pct in thresholds.edge_perturbation_grid]
     sweep_points = run_parameter_sweep(
         session,
-        factory,
-        param_grid,
+        strategy_factory,
+        perturbation_param_grid,
         asset,
         timeframe,
         backtest_config,
@@ -336,4 +353,61 @@ def evaluate_candidacy(
         rejected_at_gate=None,
         reason="passed all four gates: sample size/margin, robustness, walk-forward, TEST",
         **common_fields,
+    )
+
+
+def evaluate_condition_candidacy(
+    session: Session,
+    condition: Condition,
+    direction: str,
+    expiry_seconds: int,
+    asset: str,
+    timeframe: str,
+    backtest_config: BacktestConfig,
+    *,
+    feature_set_version: str,
+    payout: float,
+    walk_forward_folds: Sequence[WalkForwardFold],
+    thresholds: CandidacyThresholds = CandidacyThresholds(),
+    scenario: ExecutionScenario | None = None,
+    rng_seed: int = 0,
+    label: str | None = None,
+) -> CandidacyVerdict:
+    """Behavior-preserving wrapper kept for every existing discovered-
+    ``Condition`` call site (this was ``evaluate_candidacy``'s own exact
+    signature before the Step 9 generalization) — builds the identical
+    ``ConditionStrategy``-based ``base_strategy``/``strategy_factory``/
+    ``perturbation_param_grid`` the old hardcoded implementation built
+    internally, so every already-reported verdict (the 260-evaluation
+    corrected rerun included) is reproduced byte-for-byte; see
+    ``tests/test_research_candidacy.py``'s regression test.
+    """
+    base_strategy = ConditionStrategy(condition, direction, expiry_seconds, label=label)
+
+    def strategy_factory(edge_perturbation_pct: float) -> ConditionStrategy:
+        return ConditionStrategy(
+            condition,
+            direction,
+            expiry_seconds,
+            edge_perturbation_pct=edge_perturbation_pct,
+            label=label,
+        )
+
+    perturbation_param_grid = [
+        {"edge_perturbation_pct": pct} for pct in thresholds.edge_perturbation_grid
+    ]
+    return evaluate_candidacy(
+        session,
+        base_strategy,
+        asset,
+        timeframe,
+        backtest_config,
+        feature_set_version=feature_set_version,
+        payout=payout,
+        walk_forward_folds=walk_forward_folds,
+        strategy_factory=strategy_factory,
+        perturbation_param_grid=perturbation_param_grid,
+        thresholds=thresholds,
+        scenario=scenario,
+        rng_seed=rng_seed,
     )

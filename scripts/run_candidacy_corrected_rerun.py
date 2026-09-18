@@ -26,7 +26,7 @@ from otc_research.config import load_config
 from otc_research.db.models import Candle, ConditionTrial
 from otc_research.db.session import get_engine, get_session_factory, init_db
 from otc_research.features.engine import FEATURE_SET_VERSION
-from otc_research.research.candidacy import CandidacyThresholds, evaluate_candidacy
+from otc_research.research.candidacy import CandidacyThresholds, evaluate_condition_candidacy
 from otc_research.research.discovery import Condition
 from otc_research.utils.logging import get_logger
 from otc_research.utils.timeframes import timeframe_to_seconds
@@ -122,7 +122,7 @@ def main() -> None:
                 fold_cache[fold_key] = _walk_forward_folds(session, row.asset, row.timeframe, config.backtest)
             folds = fold_cache[fold_key]
 
-            verdict = evaluate_candidacy(
+            verdict = evaluate_condition_candidacy(
                 session, condition, direction, expiry_seconds, row.asset, row.timeframe,
                 config.backtest, feature_set_version=FEATURE_SET_VERSION, payout=args.payout,
                 walk_forward_folds=folds, thresholds=CandidacyThresholds(),

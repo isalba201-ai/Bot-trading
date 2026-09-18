@@ -31,7 +31,7 @@ from otc_research.backtest.walkforward import generate_folds
 from otc_research.config import load_config
 from otc_research.db.session import get_engine, get_session_factory, init_db
 from otc_research.features.engine import FEATURE_SET_VERSION
-from otc_research.research.candidacy import CandidacyThresholds, evaluate_candidacy
+from otc_research.research.candidacy import CandidacyThresholds, evaluate_condition_candidacy
 from otc_research.research.dataset import DEFAULT_HORIZONS, build_dataset
 from otc_research.research.discovery import run_discovery
 from otc_research.research.targets import triple_barrier_labels, triple_barrier_to_binary
@@ -113,7 +113,7 @@ def _run_discovery_and_candidacy(session, df, feature_cols, target_cols, asset, 
     verdicts = []
     for entry in all_significant:
         expiry_seconds = entry["horizon"] * timeframe_seconds
-        verdict = evaluate_candidacy(
+        verdict = evaluate_condition_candidacy(
             session, entry["condition"], entry["direction"], expiry_seconds, asset, timeframe,
             config.backtest, feature_set_version=FEATURE_SET_VERSION, payout=DEFAULT_PAYOUT,
             walk_forward_folds=folds, thresholds=CandidacyThresholds(),

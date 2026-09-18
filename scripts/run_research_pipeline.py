@@ -48,7 +48,7 @@ from otc_research.db.models import Candle
 from otc_research.db.session import get_engine, get_session_factory, init_db
 from otc_research.features.engine import FEATURE_SET_VERSION
 from otc_research.research.baseline import unconditional_baseline
-from otc_research.research.candidacy import CandidacyThresholds, evaluate_candidacy
+from otc_research.research.candidacy import CandidacyThresholds, evaluate_condition_candidacy
 from otc_research.research.dataset import DEFAULT_HORIZONS, build_dataset
 from otc_research.research.discovery import run_discovery
 from otc_research.research.models import run_model_comparison, train_val_frames
@@ -195,7 +195,7 @@ def _run_asset_timeframe(session, asset: str, timeframe: str, config, run_id_pre
         folds = _walk_forward_folds(session, asset, timeframe, backtest_config)
         for entry in all_significant:
             expiry_seconds = entry["horizon"] * timeframe_seconds
-            verdict = evaluate_candidacy(
+            verdict = evaluate_condition_candidacy(
                 session,
                 entry["condition"],
                 entry["direction"],

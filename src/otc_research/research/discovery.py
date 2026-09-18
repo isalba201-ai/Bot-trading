@@ -162,6 +162,7 @@ def run_discovery(
     fdr_q: float = 0.05,
     regime: str | None = None,
     run_id: str | None = None,
+    conditions: Sequence[Condition] | None = None,
 ) -> list[DiscoveryResult]:
     """Runs the interaction search over ``df`` (caller's responsibility:
     TRAIN rows only) for one target column, logs every combination tried
@@ -170,15 +171,28 @@ def run_discovery(
     underpowered trials last). ``regime`` is metadata only, recorded on
     each row — pass an already regime-filtered ``df`` if you want a
     regime-scoped search; this function does not filter by regime itself.
+
+    ``conditions``, if given, is used VERBATIM instead of generating the
+    quantile-binned grid from ``feature_cols``/``combo_sizes``/``n_bins``
+    (which are then ignored) — added for the Step 9 addendum's H9
+    (session-bias) restricted discovery, which needs one bin per literal
+    hour value (0..23), not a quantile split of ``hour_utc`` that could
+    land bin edges off integer-hour boundaries. Every other discipline
+    (trial logging, BH-FDR correction, p-value sort) is identical either
+    way — this is a substitution of WHICH conditions are tried, not a
+    lighter-weight path.
     """
     run_id = run_id or str(uuid.uuid4())
     scoped = df if regime is None else df[df["regime"] == regime]
 
-    all_conditions: list[Condition] = []
-    for size in combo_sizes:
-        all_conditions.extend(
-            generate_conditions(scoped, feature_cols, combo_size=size, n_bins=n_bins)
-        )
+    if conditions is not None:
+        all_conditions: list[Condition] = list(conditions)
+    else:
+        all_conditions = []
+        for size in combo_sizes:
+            all_conditions.extend(
+                generate_conditions(scoped, feature_cols, combo_size=size, n_bins=n_bins)
+            )
 
     trial_rows: list[tuple[Condition, WinRateStat, float | None]] = []
     trial_orm_rows: list[ConditionTrial] = []

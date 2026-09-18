@@ -150,6 +150,27 @@ def test_run_discovery_respects_min_sample_size(session):
     assert all(r.fdr_significant is False for r in results)
 
 
+def test_run_discovery_explicit_conditions_used_verbatim_ignoring_grid_params(session):
+    # Step 9 addendum: an explicit `conditions` list (e.g. one bin per
+    # literal hour_utc value) bypasses generate_conditions entirely --
+    # feature_cols/combo_sizes/n_bins are ignored when conditions is given.
+    df = _make_dataset_with_planted_interaction(n=500)
+    explicit = [
+        Condition(parts=(("feature_a", 0.75, 1.01),)),
+        Condition(parts=(("feature_b", 0.75, 1.01),)),
+    ]
+    results = run_discovery(
+        session, df, ["feature_a", "feature_b", "noise_feature"], "target",
+        asset="TEST_FX", timeframe="1h", feature_set_version="v4",
+        combo_sizes=(2, 3), n_bins=10, min_sample_size=10,  # would normally produce far more
+        conditions=explicit,
+    )
+    assert len(results) == 2
+    stored = session.query(ConditionTrial).all()
+    assert len(stored) == 2
+    assert {r.condition.parts for r in results} == {c.parts for c in explicit}
+
+
 def test_run_discovery_regime_scoping_filters_rows(session):
     df = _make_dataset_with_planted_interaction(n=800)
     df["regime"] = np.where(np.arange(len(df)) % 2 == 0, "regime_a", "regime_b")

@@ -12,8 +12,11 @@ from otc_research.research.candidacy import (
     DEFAULT_ENTRY_DELAY_CANDLES,
     CandidacyThresholds,
     evaluate_candidacy,
+    evaluate_condition_candidacy,
 )
+from otc_research.research.condition_strategy import ConditionStrategy
 from otc_research.research.discovery import Condition
+from otc_research.research.strategy_candidacy import build_candidacy_inputs
 
 ASSET = "TEST_FX"
 TIMEFRAME = "1m"
@@ -129,7 +132,7 @@ def reversing_session(session):
 
 def test_evaluate_candidacy_accepts_a_condition_with_a_real_replicated_edge(momentum_session):
     session, start, feature_set_version = momentum_session
-    verdict = evaluate_candidacy(
+    verdict = evaluate_condition_candidacy(
         session,
         _momentum_condition(),
         "CALL",
@@ -158,7 +161,7 @@ def test_evaluate_candidacy_accepts_a_condition_with_a_real_replicated_edge(mome
 
 def test_evaluate_candidacy_touches_test_split_exactly_once_on_acceptance(momentum_session):
     session, start, feature_set_version = momentum_session
-    evaluate_candidacy(
+    evaluate_condition_candidacy(
         session,
         _momentum_condition(),
         "CALL",
@@ -182,7 +185,7 @@ def test_evaluate_candidacy_rejects_at_sample_size_gate_when_floor_is_unreachabl
     momentum_session,
 ):
     session, start, feature_set_version = momentum_session
-    verdict = evaluate_candidacy(
+    verdict = evaluate_condition_candidacy(
         session,
         _momentum_condition(),
         "CALL",
@@ -224,7 +227,7 @@ def test_evaluate_candidacy_rejects_at_margin_gate_when_matched_trades_have_no_e
     start = _insert_candles(session, closes)
     feature_report = compute_and_store(session, ASSET, TIMEFRAME)
 
-    verdict = evaluate_candidacy(
+    verdict = evaluate_condition_candidacy(
         session,
         _momentum_condition(),
         "CALL",
@@ -250,7 +253,7 @@ def test_evaluate_candidacy_rejects_at_test_gate_when_edge_does_not_replicate_ou
     reversing_session,
 ):
     session, start, feature_set_version = reversing_session
-    verdict = evaluate_candidacy(
+    verdict = evaluate_condition_candidacy(
         session,
         _momentum_condition(),
         "CALL",
@@ -293,7 +296,7 @@ def test_evaluate_candidacy_default_scenario_ignores_slippage_config(momentum_se
             entry_delay_candles=2, signal_drop_probability=0.0, slippage_pct=90.0
         ),
     )
-    verdict = evaluate_candidacy(
+    verdict = evaluate_condition_candidacy(
         session, _momentum_condition(), "CALL", 60, ASSET, TIMEFRAME, poisoned_config,
         feature_set_version=feature_set_version, payout=0.85,
         walk_forward_folds=_train_val_folds(start), label="poisoned_config_test",
@@ -303,7 +306,7 @@ def test_evaluate_candidacy_default_scenario_ignores_slippage_config(momentum_se
 
 def test_evaluate_candidacy_default_scenario_is_delay_only_not_realistic(momentum_session):
     session, start, feature_set_version = momentum_session
-    evaluate_candidacy(
+    evaluate_condition_candidacy(
         session, _momentum_condition(), "CALL", 60, ASSET, TIMEFRAME, _backtest_config(),
         feature_set_version=feature_set_version, payout=0.85,
         walk_forward_folds=_train_val_folds(start), label="scenario_name_check",
@@ -318,7 +321,7 @@ def test_evaluate_candidacy_default_scenario_is_delay_only_not_realistic(momentu
 
 def test_evaluate_candidacy_respects_explicit_scenario_override(momentum_session):
     session, start, feature_set_version = momentum_session
-    evaluate_candidacy(
+    evaluate_condition_candidacy(
         session, _momentum_condition(), "CALL", 60, ASSET, TIMEFRAME, _backtest_config(),
         feature_set_version=feature_set_version, payout=0.85,
         walk_forward_folds=_train_val_folds(start), scenario=delay_only_scenario(3),
@@ -333,7 +336,7 @@ def test_evaluate_candidacy_respects_explicit_scenario_override(momentum_session
 
 def test_evaluate_candidacy_rejects_at_walk_forward_gate_when_too_few_folds_sampled(momentum_session):
     session, start, feature_set_version = momentum_session
-    verdict = evaluate_candidacy(
+    verdict = evaluate_condition_candidacy(
         session, _momentum_condition(), "CALL", 60, ASSET, TIMEFRAME, _backtest_config(),
         feature_set_version=feature_set_version, payout=0.85,
         walk_forward_folds=_train_val_folds(start),
@@ -344,3 +347,79 @@ def test_evaluate_candidacy_rejects_at_walk_forward_gate_when_too_few_folds_samp
     assert "n_folds_sufficiently_sampled" in verdict.reason
     # TEST must never be touched once gate 3 fails
     assert session.query(BacktestRun).filter_by(split="test").count() == 0
+
+
+# --- Step 9 generalization: evaluate_candidacy(base_strategy, ...) ---------
+
+
+def test_evaluate_candidacy_generic_path_matches_condition_wrapper_byte_for_byte(momentum_session):
+    # evaluate_condition_candidacy must be a pure pass-through onto the
+    # generalized evaluate_candidacy -- proven by building the identical
+    # ConditionStrategy-based base_strategy/strategy_factory/param_grid by
+    # hand and confirming the resulting CandidacyVerdict is identical,
+    # field for field, to the wrapper's own verdict. This protects the
+    # already-reported 260-evaluation corrected rerun from silently
+    # changing when new callers (H1-H20) start using the same function.
+    session, start, feature_set_version = momentum_session
+    condition = _momentum_condition()
+    config = _backtest_config()
+    folds = _train_val_folds(start)
+
+    wrapper_verdict = evaluate_condition_candidacy(
+        session, condition, "CALL", 60, ASSET, TIMEFRAME, config,
+        feature_set_version=feature_set_version, payout=0.85,
+        walk_forward_folds=folds, label="generic_parity_check",
+    )
+
+    base_strategy = ConditionStrategy(condition, "CALL", 60, label="generic_parity_check_direct")
+
+    def strategy_factory(edge_perturbation_pct: float) -> ConditionStrategy:
+        return ConditionStrategy(
+            condition, "CALL", 60, edge_perturbation_pct=edge_perturbation_pct,
+            label="generic_parity_check_direct",
+        )
+
+    thresholds = CandidacyThresholds()
+    perturbation_param_grid = [
+        {"edge_perturbation_pct": pct} for pct in thresholds.edge_perturbation_grid
+    ]
+    direct_verdict = evaluate_candidacy(
+        session, base_strategy, ASSET, TIMEFRAME, config,
+        feature_set_version=feature_set_version, payout=0.85,
+        walk_forward_folds=folds, strategy_factory=strategy_factory,
+        perturbation_param_grid=perturbation_param_grid, thresholds=thresholds,
+    )
+
+    assert direct_verdict.accepted == wrapper_verdict.accepted
+    assert direct_verdict.rejected_at_gate == wrapper_verdict.rejected_at_gate
+    assert direct_verdict.train_sample_size == wrapper_verdict.train_sample_size
+    assert direct_verdict.train_win_rate == wrapper_verdict.train_win_rate
+    assert direct_verdict.train_margin_over_break_even == wrapper_verdict.train_margin_over_break_even
+    assert direct_verdict.robustness == wrapper_verdict.robustness
+    assert direct_verdict.walk_forward == wrapper_verdict.walk_forward
+    assert direct_verdict.test_sample_size == wrapper_verdict.test_sample_size
+    assert direct_verdict.test_win_rate == wrapper_verdict.test_win_rate
+    assert direct_verdict.test_win_rate_ci_low == wrapper_verdict.test_win_rate_ci_low
+
+
+def test_evaluate_candidacy_accepts_an_h_strategy_via_strategy_candidacy_builder(momentum_session):
+    # H3's momentum-continuation trigger, on the planted-momentum
+    # fixture -- proves the generalized funnel works for a hand-designed
+    # Strategy class, not just ConditionStrategy, end to end including
+    # gate 2's per-strategy perturbation grid.
+    session, start, feature_set_version = momentum_session
+    base_strategy, strategy_factory, param_grid = build_candidacy_inputs("H3", expiry_seconds=60)
+    verdict = evaluate_candidacy(
+        session, base_strategy, ASSET, TIMEFRAME, _backtest_config(),
+        feature_set_version=feature_set_version, payout=0.85,
+        walk_forward_folds=_train_val_folds(start), strategy_factory=strategy_factory,
+        perturbation_param_grid=param_grid,
+    )
+    # Whatever the verdict, the funnel itself must have run correctly --
+    # gate 1 is always reachable (real trades exist), and if it clears
+    # gate 1, robustness must have actually been evaluated via the H3
+    # perturbation grid (not silently skipped).
+    assert verdict.train_sample_size is not None
+    if verdict.rejected_at_gate not in ("sample_size_and_margin", None) or verdict.accepted:
+        assert verdict.robustness is not None
+        assert verdict.robustness.n_points == len(param_grid)
