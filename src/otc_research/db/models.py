@@ -279,8 +279,77 @@ class Signal(Base):
 
     created_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)
 
+    # --- Phase 9 additions (approved plan point 9): manual-review signal
+    # lifecycle, latency, and cost-aware fields. Additive only -- every
+    # column above this line is untouched, per this file's own design
+    # note about never blending write-once fields with mutable state.
+    # ``historical_win_rate``/``win_rate_ci_low``/``win_rate_ci_high``
+    # above already serve as the "probability_estimate"/CI fields the
+    # plan asks for; ``conditions_met`` already serves as "reasons_met";
+    # ``expectancy`` already serves as "expected_value" -- none of those
+    # are duplicated here.
+    signal_ref = Column(String(32), nullable=True, unique=True)  # "SIGNAL-2026-000001"
+
+    # When the closing candle this signal is based on actually arrived --
+    # distinct from generated_at (when the strategy decided) and
+    # created_at (when this row was written). Only meaningful once a live
+    # poller exists (see signals/service.py's docstring); NaT in replay.
+    data_received_at = Column(DateTime(timezone=True), nullable=True)
+    sent_at = Column(DateTime(timezone=True), nullable=True)  # NotificationProvider.notify() returned
+    valid_from = Column(DateTime(timezone=True), nullable=True)
+    valid_until = Column(DateTime(timezone=True), nullable=True)
+
+    # PENDING / EXPIRED / DECIDED -- see signals/service.py.
+    status = Column(String(16), nullable=False, default="PENDING")
+
+    break_even_win_rate = Column(Float, nullable=True)  # backtest.metrics.break_even_win_rate(payout)
+    margin_over_break_even = Column(Float, nullable=True)  # historical_win_rate - break_even_win_rate
+
+    # True whenever the real broker payout at signal time isn't known --
+    # EV must say so explicitly rather than imply certainty (point 8).
+    payout_is_estimated = Column(Boolean, nullable=False, default=True)
+
+    confidence_label = Column(String(8), nullable=True)  # ALTA / MEDIA / BAJA -- signals/service.py
+
+    reasons_rejected = Column(Text, nullable=True)  # JSON list, sibling of conditions_met
+
     __table_args__ = (
         Index("ix_signal_lookup", "asset", "timeframe", "generated_at"),
+    )
+
+
+class SignalDecision(Base):
+    """A person's manual decision about one ``Signal`` -- point 10 of the
+    approved plan. Never written by anything but ``signals.decisions.
+    record_decision`` (a CLI today, since there is no UI yet), and never
+    inferred or auto-generated: a signal with no row here was never acted
+    on, which is itself meaningful and must not be confused with
+    ``DID_NOT_TAKE`` (an explicit "I saw it and passed").
+    """
+
+    __tablename__ = "signal_decisions"
+
+    id = Column(Integer, primary_key=True)
+    signal_id = Column(Integer, ForeignKey("signals.id"), nullable=False)
+
+    # TOOK_TRADE / DID_NOT_TAKE / ARRIVED_LATE.
+    decision = Column(String(16), nullable=False)
+    decided_at = Column(DateTime(timezone=True), nullable=False)
+
+    # Actuals, filled in at decision time if known -- nullable because a
+    # DID_NOT_TAKE decision has none of these, and a TOOK_TRADE decision
+    # recorded from memory afterward may not have them either.
+    entry_price_actual = Column(Float, nullable=True)
+    payout_observed = Column(Float, nullable=True)
+    entry_time_actual = Column(DateTime(timezone=True), nullable=True)
+    expiry_used_seconds = Column(Integer, nullable=True)
+
+    # Filled in later, once the trade's outcome is known.
+    result = Column(String(8), nullable=True)  # WIN / LOSS / VOID
+    pnl = Column(Float, nullable=True)
+
+    __table_args__ = (
+        Index("ix_signal_decision_signal_id", "signal_id"),
     )
 
 
