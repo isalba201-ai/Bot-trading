@@ -36,7 +36,7 @@ from otc_research.utils.timeframes import timeframe_to_seconds
 
 logger = get_logger(__name__)
 
-VALID_SPLITS = ("train", "validation", "test")
+VALID_SPLITS = ("train", "validation", "test", "walk_forward")
 
 
 @dataclass(frozen=True)
@@ -106,6 +106,7 @@ def run_backtest(
     rng_seed: int = 0,
     start: dt.datetime | None = None,
     end: dt.datetime | None = None,
+    fold_index: int | None = None,
 ) -> list[BacktestRunResult]:
     """``start``/``end`` restrict the candle universe to a sub-window
     BEFORE the train/validation/test split is computed — i.e. the split
@@ -114,6 +115,14 @@ def run_backtest(
     period ... the sample size"), not for everyday use — most callers
     should leave both as None and use the strategy's full ingested
     history.
+
+    ``split="walk_forward"`` (Phase 7, see backtest/walkforward.py) is
+    different in kind, not just another slice: it skips the internal
+    60/20/20 split entirely and evaluates every candle in
+    ``[start, end)`` as one block — the caller (walkforward.py) is
+    expected to pass one fold's own test window via ``start``/``end`` and
+    that fold's number via ``fold_index``, which is stored on the row so
+    many folds from one sweep can be told apart later.
     """
     if split not in VALID_SPLITS:
         raise ValueError(f"split must be one of {VALID_SPLITS}, got {split!r}")
@@ -131,22 +140,26 @@ def run_backtest(
         )
 
     candles = _load_candles(session, asset, timeframe, start=start, end=end)
-    if len(candles) < 3:
+    min_candles = 1 if split == "walk_forward" else 3
+    if len(candles) < min_candles:
         raise ValueError(
-            f"not enough candles for {asset}/{timeframe} to split "
-            f"(have {len(candles)}, need at least 3)"
+            f"not enough candles for {asset}/{timeframe} "
+            f"(have {len(candles)}, need at least {min_candles})"
         )
     features_by_timestamp = _load_features(session, asset, timeframe, feature_set_version)
 
-    temporal_split = compute_temporal_split(
-        len(candles), backtest_config.train_fraction, backtest_config.validation_fraction
-    )
-    split_slice = {
-        "train": temporal_split.train_slice,
-        "validation": temporal_split.validation_slice,
-        "test": temporal_split.test_slice,
-    }[split]
-    split_candles = candles[split_slice]
+    if split == "walk_forward":
+        split_candles = candles
+    else:
+        temporal_split = compute_temporal_split(
+            len(candles), backtest_config.train_fraction, backtest_config.validation_fraction
+        )
+        split_slice = {
+            "train": temporal_split.train_slice,
+            "validation": temporal_split.validation_slice,
+            "test": temporal_split.test_slice,
+        }[split]
+        split_candles = candles[split_slice]
 
     timeframe_seconds = timeframe_to_seconds(timeframe)
     active_scenarios = list(scenarios) if scenarios is not None else _default_scenarios(
@@ -179,6 +192,7 @@ def run_backtest(
             win_rate_ci_high=stats.win_rate_ci_high,
             expectancy_pct=stats.expectancy_pct,
             rng_seed=rng_seed,
+            fold_index=fold_index,
         )
         session.add(run_row)
         session.commit()

@@ -114,10 +114,18 @@ splits only, never test.
   clearing 50%. A Phase 6 robustness sweep then showed this is fragile,
   not robust: a threshold sweep held up (`consistent_direction`, 4/5
   points), but an expiry sweep did not (edge present at 1h-2h, gone by
-  3h-4h) and, more importantly, a time-period sweep did not (edge
+  3h-4h) and a coarse 2-window time-period sweep did not either (edge
   present in the second half of the ingested window, absent in the
-  first half). See `Hypothesis.notes` for H4 (via `scripts/` or a DB
-  query) for the exact figures.
+  first half).
+  A Phase 7 walk-forward (12 non-overlapping 14-day folds across the same
+  ~7 months) painted a more nuanced picture than that 2-window split:
+  under the optimistic scenario, 11/12 folds had a positive point
+  estimate (mean 56.9%, stdev 8.1pp across folds) but only 3/12 folds
+  individually cleared the 95% CI edge bar, and the worst fold (Aug
+  11-25) sat at 40.5% — clearly a losing stretch. Under the realistic
+  scenario, the mean drops to 47.2% (stdev 4.8pp) and **0 of 12 folds**
+  show an edge. See `Hypothesis.notes` for H4 (via `scripts/` or a DB
+  query) for the exact per-fold figures.
 - **Execution cost dominates at 5-minute granularity**: EUR/USD's typical
   5-minute move is ~0.01% (about a pip), comparable to or smaller than
   the default realistic/pessimistic slippage assumptions in
@@ -127,8 +135,11 @@ splits only, never test.
 
 None of this is a ROBUST EDGE, a PROMISING classification, or grounds to
 build the Phase 9 signal UI on top of H4 specifically. It's exactly what
-Phase 6 is for: catching an apparent edge before it reaches further
-phases on the strength of one lucky split.
+Phases 6-7 are for: catching an apparent edge before it reaches further
+phases on the strength of one lucky split or one lucky fold. The
+realistic-scenario walk-forward result (0/12 folds) is the most decisive
+finding yet: under costs a real trader would actually pay, H4 has not
+shown an edge in any two-week stretch of the ~7 months tested.
 
 ## Explicitly forbidden language
 

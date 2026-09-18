@@ -19,9 +19,11 @@ layer in isolation.
 ├───────────────────────────────────────────────────────────────┤
 │  9. Signal engine ("BUSCAR SEÑAL" UI, A+/A/B/NO_TRADE tiers)   │
 ├───────────────────────────────────────────────────────────────┤
-│  7-8. Walk-forward, Monte Carlo                                │
+│  8. Monte Carlo                                                 │
 ├───────────────────────────────────────────────────────────────┤
-│  6. Robustness / parameter-sensitivity sweeps (this phase)      │
+│  7. Walk-forward analysis (this phase)                          │
+├───────────────────────────────────────────────────────────────┤
+│  6. Robustness / parameter-sensitivity sweeps                   │
 ├───────────────────────────────────────────────────────────────┤
 │  5. Baseline strategies (H1-H10)                                │
 ├───────────────────────────────────────────────────────────────┤
@@ -65,6 +67,7 @@ src/otc_research/
     metrics.py               # Wilson CI win rate, expectancy — never a bare point estimate
     engine.py                # orchestrates candles+features -> split -> simulate -> BacktestRun
     robustness.py             # parameter/expiry/time-window sweeps + fragility verdict
+    walkforward.py             # sliding train/test folds + mean/dispersion/worst-fold summary
   strategies/
     h1_streak.py .. h10_combined.py  # one Strategy implementation per hypothesis (STRATEGIES.md)
     __init__.py               # BASELINE_STRATEGIES registry (H9 excluded, needs explicit params)
@@ -79,6 +82,7 @@ scripts/
   run_backtest.py         # CLI to run one strategy through the Phase 4 backtesting engine
   run_baseline_backtests.py # CLI to run every Phase 5 baseline strategy at once (train/validation only)
   run_robustness_sweep.py  # CLI for Phase 6 parameter/expiry/time-window sweeps
+  run_walk_forward.py      # CLI for Phase 7 walk-forward analysis
   seed_hypotheses.py      # registers the hypotheses in STRATEGIES.md
 config/
   config.yaml            # risk limits, signal thresholds, pairs, DB url
@@ -143,16 +147,28 @@ restructuring what already exists.
    `scripts/run_robustness_sweep.py` is the CLI. This already found, on
    real EUR/USD data, that H4's apparent edge does not survive a
    time-period sweep — see STRATEGIES.md.
+8. `backtest.walkforward.generate_folds()` slides a (train_span,
+   test_span) window pair across a strategy's whole ingested history;
+   `run_walk_forward()` evaluates each fold's test window independently
+   via `run_backtest(split="walk_forward")` — a mode that skips the
+   internal 60/20/20 split and evaluates the given window as one block,
+   persisting each fold's `BacktestRun` row with its `fold_index`.
+   `summarize_walk_forward()` reports mean, dispersion, and worst-fold
+   win rate across folds, never just the best-looking one.
+   `scripts/run_walk_forward.py` is the CLI. Run against H4 on real
+   EUR/USD 1h data (12 folds, 14 days each): mean win rate 56.9%
+   optimistic / 47.2% realistic, and under the realistic scenario 0 of 12
+   folds showed a statistically credible edge — see STRATEGIES.md.
 
-Everything past this point (walk-forward/Monte Carlo testing, signals)
-does not exist yet and must be built strictly on top of validated
-`Feature` rows and this engine — never by recomputing indicators ad hoc
-or reading candles directly, so that every strategy sees the same,
-auditable numbers and validation can't be silently bypassed. The eventual
-"BUSCAR SEÑAL" UI (Phase 9) is a thin layer that triggers this same fetch
-→ validate → store → feature → strategy-evaluation path on demand, then
-either shows a signal or "NO HAY SEÑAL" — see SIGNAL_ENGINE.md. It never
-places an order.
+Everything past this point (Monte Carlo testing, signals) does not exist
+yet and must be built strictly on top of validated `Feature` rows and
+this engine — never by recomputing indicators ad hoc or reading candles
+directly, so that every strategy sees the same, auditable numbers and
+validation can't be silently bypassed. The eventual "BUSCAR SEÑAL" UI
+(Phase 9) is a thin layer that triggers this same fetch → validate →
+store → feature → strategy-evaluation path on demand, then either shows
+a signal or "NO HAY SEÑAL" — see SIGNAL_ENGINE.md. It never places an
+order.
 
 ## Why not Pocket Option OTC
 

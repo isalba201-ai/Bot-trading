@@ -63,21 +63,23 @@ data-generating processes.
 ## Project status
 
 Building in phases, each gated by tests before moving to the next. **Phases
-1-6 are complete**: architecture + storage, data validation, real data
+1-7 are complete**: architecture + storage, data validation, real data
 sources (Twelve Data and OANDA), point-in-time feature engineering (see
 [FEATURES.md](FEATURES.md)), a backtesting engine that runs a strategy
 under a strict train/validation/test split and three execution-realism
 scenarios reporting Wilson-CI-grounded win rate/expectancy, the H1-H10
-baseline strategies themselves, and a robustness/sensitivity sweep runner
-(see [BACKTESTING.md](BACKTESTING.md) / [STRATEGIES.md](STRATEGIES.md)).
-**All 9 zero-argument hypotheses have actually been run against real
-EUR/USD data** (5m and 1h, via Twelve Data) — see STRATEGIES.md's
-"What real data has actually shown so far" for the honest result: no
-robust edge yet; H4 looked promising at first but a robustness sweep
-showed it doesn't hold up across time periods. Walk-forward/Monte Carlo
-testing and the on-demand "BUSCAR SEÑAL" UI — everything the signal
-engine needs to show a non-fabricated confidence number — are **not
-built yet**.
+baseline strategies themselves, a robustness/sensitivity sweep runner,
+and walk-forward analysis (mean/dispersion/worst-fold win rate across
+sliding time folds) (see [BACKTESTING.md](BACKTESTING.md) /
+[STRATEGIES.md](STRATEGIES.md)). **All 9 zero-argument hypotheses have
+actually been run against real EUR/USD data** (5m and 1h, via Twelve
+Data) — see STRATEGIES.md's "What real data has actually shown so far"
+for the honest result: no robust edge yet. H4 looked promising at first;
+a robustness sweep showed it doesn't hold up across time periods, and a
+12-fold walk-forward confirmed it under the realistic execution
+scenario, 0 of 12 folds showed an edge. Monte Carlo testing and the
+on-demand "BUSCAR SEÑAL" UI — everything the signal engine needs to show
+a non-fabricated confidence number — are **not built yet**.
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -87,7 +89,7 @@ built yet**.
 | 4 | Backtesting engine | Done |
 | 5 | Baseline strategies (H1-H10) | Done — run against real EUR/USD data, no robust edge found yet |
 | 6 | Robustness testing | Done |
-| 7 | Walk-forward analysis | Not started |
+| 7 | Walk-forward analysis | Done |
 | 8 | Monte Carlo | Not started |
 | 9 | Signal engine + "BUSCAR SEÑAL" UI | Not started |
 | 10 | Paper trading / signal journal reconciliation | Not started |
@@ -192,6 +194,22 @@ and reports whether a Wilson-CI edge holds up across nearby variations
 ("consistent_direction") or only at one lucky point ("fragile") — see
 BACKTESTING.md's robustness rule and STRATEGIES.md for what this already
 found for H4.
+
+## Walk-forward analysis
+
+```bash
+python scripts/run_walk_forward.py \
+    --strategy otc_research.strategies.h4_bollinger:H4BollingerMeanReversion \
+    --strategy-kwargs '{"expiry_seconds": 3600}' \
+    --pair EUR_USD --timeframe 1h \
+    --train-days 30 --test-days 14
+```
+
+Slides train/test fold windows across the whole ingested history and
+reports mean, dispersion, and worst-fold win rate across folds — see
+BACKTESTING.md's walk-forward rule and STRATEGIES.md for H4's real
+result (mean 56.9% optimistic / 47.2% realistic across 12 folds, 0/12
+folds showing an edge once realistic costs are applied).
 
 ## Import a CSV file instead
 

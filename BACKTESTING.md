@@ -1,20 +1,23 @@
 # Backtesting methodology
 
-**Status: Phases 4-6 are implemented** — `src/otc_research/backtest/` runs
+**Status: Phases 4-7 are implemented** — `src/otc_research/backtest/` runs
 a strategy over stored candles/features under the temporal split and the
 three execution-realism scenarios below and reports Wilson-CI-grounded
 win rate and expectancy (Phase 4); `otc_research.strategies` implements
 H1-H10 against that engine (Phase 5); `backtest/robustness.py` sweeps a
-strategy's parameters, expiry, and time windows and reports whether an
-edge holds up or is fragile (Phase 6). **Phase 7 (walk-forward analysis)
-and Phase 8 (Monte Carlo) are not implemented yet**, so nothing in this
+strategy's parameters, expiry, and time windows (Phase 6);
+`backtest/walkforward.py` slides train/test fold windows across the whole
+history and reports mean/dispersion/worst-fold win rate (Phase 7).
+**Phase 8 (Monte Carlo) is not implemented yet**, so nothing in this
 repository is entitled to a final NO EDGE / WEAK EDGE / PROMISING /
 ROBUST EDGE classification — see "What's implemented" below, and
 STRATEGIES.md for what an actual run against real EUR/USD data has shown
-so far (short version: nothing robust yet — H4's apparent edge did not
-survive a time-period sweep). This document was written before any of
-that code, so the rules were fixed before results existed that could
-tempt bending them — see git history for the pre-implementation version.
+so far (short version: nothing robust yet — H4's apparent edge does not
+survive realistic execution costs in any of the robustness or
+walk-forward checks run against it). This document was written before
+any of that code, so the rules were fixed before results existed that
+could tempt bending them — see git history for the pre-implementation
+version.
 
 ## Train / validation / test split
 
@@ -131,11 +134,11 @@ A+ only — see RISK_MANAGEMENT.md).
 | Win rate reported only with sample size + 95% CI, never a bare point estimate | `backtest/metrics.py::wilson_confidence_interval` / `summarize_trades` |
 | Expectancy in price terms (a plain directional signal has no fixed payout) | `backtest/metrics.py::TradeStats.expectancy_pct` |
 | Every run's inputs auditable | `db.models.BacktestRun`, one row per (strategy, asset, timeframe, split, scenario), including the RNG seed used |
-| Walk-forward analysis | **Not implemented (Phase 7)** |
+| Walk-forward analysis | `backtest/walkforward.py::generate_folds` + `run_walk_forward` + `summarize_walk_forward` — slides train/test fold windows (default non-overlapping) across the whole ingested history, evaluates each fold's test window independently via `run_backtest(split="walk_forward")`, and reports mean win rate, population stdev across folds, and the worst single fold — never just the best-looking fold. The train window isn't used for fitting yet since no current strategy fits parameters from data; see the module docstring |
 | Monte Carlo (bootstrap/permutation of trade sequences) | **Not implemented (Phase 8)** |
 | Robustness / parameter sensitivity sweeps | `backtest/robustness.py::run_parameter_sweep` + `evaluate_robustness` — varies a strategy's constructor parameters, its expiry, and/or the time window, then checks whether a Wilson-CI edge holds across at least `min_edge_fraction` (default 70%) of the sufficiently-sampled points ("consistent_direction") or only at a lucky few ("fragile"). Deliberately uses different vocabulary from the final edge classification below — see the module docstring |
 | Multiple-testing / data-mining control across many hypotheses | Partially: `Hypothesis` table + `BacktestRun` rows make every run auditable, but no automatic adjustment of significance thresholds for the number of comparisons made exists yet |
-| Final edge classification (NO EDGE / WEAK EDGE / PROMISING / ROBUST EDGE) | **Not implemented** — requires walk-forward + Monte Carlo + robustness together; robustness alone (Phase 6) is done, but nothing produced by the engine today should be read as a final classification |
+| Final edge classification (NO EDGE / WEAK EDGE / PROMISING / ROBUST EDGE) | **Not implemented** — requires walk-forward + Monte Carlo + robustness together; walk-forward and robustness (Phases 6-7) are done, Monte Carlo (Phase 8) is not, so nothing produced by the engine today should be read as a final classification |
 | The H1-H10 strategies themselves | Implemented (Phase 5) — `otc_research/strategies/` |
 
 Individual simulated trades are not persisted to the database — they are

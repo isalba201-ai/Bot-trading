@@ -191,9 +191,14 @@ class BacktestRun(Base):
     timeframe = Column(String(8), nullable=False)
     feature_set_version = Column(String(32), nullable=False)
 
-    split = Column(String(16), nullable=False)  # train / validation / test
+    split = Column(String(16), nullable=False)  # train / validation / test / walk_forward
     execution_scenario = Column(String(16), nullable=False)  # optimistic / realistic / pessimistic
     expiry_seconds = Column(Integer, nullable=False)
+
+    # Only set for split="walk_forward" (Phase 7): which fold this row is,
+    # so many rows sharing one walk-forward run can be told apart and
+    # re-aggregated later without re-running anything.
+    fold_index = Column(Integer, nullable=True)
 
     sample_size = Column(Integer, nullable=False)
     wins = Column(Integer, nullable=False)
