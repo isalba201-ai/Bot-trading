@@ -134,6 +134,35 @@ def rci(close: pd.Series, period: int = 9) -> pd.Series:
     return close.rolling(period, min_periods=period).apply(_rci_window, raw=True)
 
 
+def adx(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14) -> pd.Series:
+    """Wilder's Average Directional Index: trend STRENGTH, direction-agnostic
+    (a strong downtrend and a strong uptrend both score high). Used by
+    research/regimes.py to classify trend-strength regime; ``ema_slope``
+    already carries direction, so the two are meant to be used together,
+    not as substitutes for each other.
+    """
+    up_move = high.diff()
+    down_move = -low.diff()
+    plus_dm = pd.Series(
+        np.where((up_move > down_move) & (up_move > 0), up_move, 0.0), index=high.index
+    )
+    minus_dm = pd.Series(
+        np.where((down_move > up_move) & (down_move > 0), down_move, 0.0), index=high.index
+    )
+    tr = true_range(high, low, close)
+
+    smoothed_tr = tr.ewm(alpha=1.0 / period, adjust=False, min_periods=period).mean()
+    smoothed_plus_dm = plus_dm.ewm(alpha=1.0 / period, adjust=False, min_periods=period).mean()
+    smoothed_minus_dm = minus_dm.ewm(alpha=1.0 / period, adjust=False, min_periods=period).mean()
+
+    plus_di = 100.0 * smoothed_plus_dm / smoothed_tr.replace(0.0, np.nan)
+    minus_di = 100.0 * smoothed_minus_dm / smoothed_tr.replace(0.0, np.nan)
+    di_sum = (plus_di + minus_di).replace(0.0, np.nan)
+    dx = 100.0 * (plus_di - minus_di).abs() / di_sum
+
+    return dx.ewm(alpha=1.0 / period, adjust=False, min_periods=period).mean()
+
+
 # --- Volatility ---------------------------------------------------------
 
 
@@ -197,6 +226,79 @@ def range_ratio(
     rng = high - low
     baseline = rng.shift(1).rolling(period, min_periods=period).mean()
     return rng / baseline.replace(0.0, np.nan)
+
+
+def rolling_std_return(close: pd.Series, period: int = 20) -> pd.Series:
+    """Rolling (population) standard deviation of 1-candle percent returns
+    over the trailing ``period`` candles — a volatility measure independent
+    of ATR's true-range definition, used by research/regimes.py alongside
+    ``atr_expansion_ratio`` for volatility-regime classification.
+    """
+    one_candle_return = close.pct_change() * 100.0
+    return one_candle_return.rolling(period, min_periods=period).std(ddof=0)
+
+
+def move_size_atr(close: pd.Series, high: pd.Series, low: pd.Series, period: int = 14) -> pd.Series:
+    """Current candle's close-to-close move, scaled by ATR: how large this
+    move was relative to what's typical right now. Uses its own ATR call
+    (period matches ``atr_14`` by default) rather than taking a precomputed
+    series, for the same self-containment reason as ``macd``.
+    """
+    atr_series = atr(high, low, close, period=period)
+    return (close - close.shift(1)).abs() / atr_series.replace(0.0, np.nan)
+
+
+# --- Returns / distance to extremes ---------------------------------------
+
+
+def cumulative_return(close: pd.Series, window: int = 10) -> pd.Series:
+    """Sum of the trailing ``window`` individual 1-candle percent returns —
+    approximately, but not exactly, equal to a single ``window``-candle
+    return (``roc(close, window)``) due to compounding; this is the
+    candle-by-candle accumulated version specifically.
+    """
+    one_candle_return = close.pct_change() * 100.0
+    return one_candle_return.rolling(window, min_periods=window).sum()
+
+
+def return_acceleration(close: pd.Series) -> pd.Series:
+    """Change in the 1-candle return itself: is the move speeding up or
+    slowing down, one candle at a time.
+    """
+    one_candle_return = roc(close, period=1)
+    return one_candle_return - one_candle_return.shift(1)
+
+
+def dist_to_high_atr(
+    close: pd.Series, high: pd.Series, low: pd.Series, atr_close: pd.Series, period: int = 20
+) -> pd.Series:
+    """Distance from close to the highest high of the PRECEDING ``period``
+    candles (current candle excluded, same convention as ``donchian_high``),
+    scaled by ATR so it's comparable across volatility regimes.
+    """
+    recent_high = donchian_high(high, period=period)
+    return (recent_high - close) / atr_close.replace(0.0, np.nan)
+
+
+def dist_to_low_atr(
+    close: pd.Series, high: pd.Series, low: pd.Series, atr_close: pd.Series, period: int = 20
+) -> pd.Series:
+    """Distance from close to the lowest low of the PRECEDING ``period``
+    candles, scaled by ATR — see ``dist_to_high_atr``.
+    """
+    recent_low = donchian_low(low, period=period)
+    return (close - recent_low) / atr_close.replace(0.0, np.nan)
+
+
+def pct_position_in_range(close: pd.Series, high: pd.Series, low: pd.Series, period: int = 20) -> pd.Series:
+    """Where close sits within the PRECEDING ``period`` candles' high-low
+    range: 0 = at the recent low, 1 = at the recent high. Same
+    current-candle-excluded baseline as ``donchian_high``/``donchian_low``.
+    """
+    recent_high = donchian_high(high, period=period)
+    recent_low = donchian_low(low, period=period)
+    span = (recent_high - recent_low).replace(0.0, np.nan)
+    return (close - recent_low) / span
 
 
 # --- Candle shape / price action ----------------------------------------

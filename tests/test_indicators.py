@@ -207,6 +207,69 @@ def test_inside_bar_breakout_signal_detects_downward_breakout():
     assert list(result) == [0.0, 0.0, -1.0]
 
 
+def test_adx_high_for_a_strong_persistent_trend():
+    close = _series([1.00 + 0.001 * i for i in range(40)])
+    high = close + 0.0005
+    low = close - 0.0005
+    result = indicators.adx(high, low, close, period=14)
+    assert result.dropna().iloc[-1] > 90.0
+
+
+def test_adx_lower_for_a_choppy_sideways_market():
+    rng = np.random.default_rng(3)
+    close = pd.Series(1.00 + np.cumsum(rng.normal(0, 0.0005, size=40)))
+    high = close + 0.0008
+    low = close - 0.0008
+    trend_close = pd.Series([1.00 + 0.001 * i for i in range(40)])
+    trend_adx = indicators.adx(trend_close + 0.0005, trend_close - 0.0005, trend_close, 14)
+    choppy_adx = indicators.adx(high, low, close, period=14)
+    assert choppy_adx.dropna().iloc[-1] < trend_adx.dropna().iloc[-1]
+
+
+def test_cumulative_return_matches_sum_of_one_candle_returns():
+    close = _series([1.00, 1.01, 1.02, 1.01, 1.03, 1.04, 1.05, 1.06, 1.07, 1.08, 1.09])
+    result = indicators.cumulative_return(close, window=10)
+    one_candle = close.pct_change() * 100.0
+    expected = one_candle.iloc[1:11].sum()
+    assert np.isclose(result.iloc[10], expected)
+
+
+def test_return_acceleration_positive_when_move_speeds_up():
+    # 1-candle returns: ~1%, ~1%, ~2% -- accelerating on the last step
+    close = _series([1.00, 1.01, 1.0201, 1.0405])
+    result = indicators.return_acceleration(close)
+    assert result.iloc[-1] > 0
+
+
+def test_move_size_atr_scales_with_relative_move_size():
+    high = _series([1.01] * 20 + [1.05])
+    low = _series([0.99] * 20 + [0.95])
+    close = _series([1.00] * 20 + [1.10])
+    result = indicators.move_size_atr(close, high, low, period=14)
+    # a 0.10 move against a small recent ATR history should be large (several multiples of ATR)
+    assert result.iloc[-1] > 3.0
+
+
+def test_dist_to_high_and_low_atr_and_position_in_range():
+    high = _series([1.10] * 20 + [1.05])
+    low = _series([0.90] * 20 + [0.95])
+    close = _series([1.00] * 20 + [1.00])
+    atr_series = indicators.atr(high, low, close, period=14)
+    dist_high = indicators.dist_to_high_atr(close, high, low, atr_series, period=20)
+    dist_low = indicators.dist_to_low_atr(close, high, low, atr_series, period=20)
+    position = indicators.pct_position_in_range(close, high, low, period=20)
+    # close sits roughly in the middle of the preceding 20-bar range [0.90, 1.10]
+    assert dist_high.iloc[-1] > 0
+    assert dist_low.iloc[-1] > 0
+    assert np.isclose(position.iloc[-1], 0.5, atol=0.01)
+
+
+def test_rolling_std_return_is_zero_for_constant_step_returns():
+    close = _series([1.00 * (1.001**i) for i in range(25)])  # constant % step each candle
+    result = indicators.rolling_std_return(close, period=20)
+    assert np.isclose(result.dropna().iloc[-1], 0.0, atol=1e-6)
+
+
 def test_structure_bias_detects_uptrend_swing_pattern():
     # Two confirmed swing lows (index 3 then 9, each higher than the last)
     # and two confirmed swing highs (index 6 then 12, each higher than the

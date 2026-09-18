@@ -36,7 +36,7 @@ lookback isn't satisfied yet (not enough history), that (asset,
 timeframe, timestamp, name) row is simply not written — never a 0 or a
 carried-forward previous value standing in for "unknown".
 
-## Feature set (`feature_set_version = "v3"`, current)
+## Feature set (`feature_set_version = "v4"`, current)
 
 - **v1** — initial set (H1-H7, H9, H10 support). Superseded, not deleted —
   any `Feature` row still stored under `v1` is exactly what it always
@@ -48,6 +48,11 @@ carried-forward previous value standing in for "unknown".
   `macd_cross_signal` (H11), `cci_20` (H12), `rci_9` (H13),
   `engulfing_signal` (H14), and `inside_bar_breakout_signal` (H15). No
   existing `v1`/`v2` column's formula changed.
+- **v4** — adds the feature set for the statistical-discovery research
+  layer (see the project pivot documented in STRATEGIES.md): multi-lag
+  returns, cumulative return, return acceleration, ADX, move size vs.
+  ATR, rolling return stdev, and distance-to-range-extremes/position in
+  range. No existing `v1`/`v2`/`v3` column's formula changed.
 
 | Feature | Formula / definition | Supports hypothesis |
 |---|---|---|
@@ -55,19 +60,27 @@ carried-forward previous value standing in for "unknown".
 | `ema_slope_12_3` | `(EMA12[t] - EMA12[t-3]) / 3` | H3, H10 |
 | `rsi_14` | Wilder RSI, period 14 (100 when there were no losses at all in the lookback, 0 when there were no gains at all — not a division-by-zero artifact) | H7 |
 | `atr_14` | Wilder average true range, period 14 | H8 |
+| `adx_14` | Wilder Average Directional Index, period 14 — trend STRENGTH, direction-agnostic (pairs with `ema_slope_12_3` for direction) | research layer |
 | `bb_mid_20`, `bb_upper_20`, `bb_lower_20` | 20-period SMA ± 2 population std dev | H4 |
 | `bb_pct_b_20` | `(close - lower) / (upper - lower)`; 0 = at the lower band, 1 = at the upper band | H4 |
 | `roc_10` | `(close[t] - close[t-10]) / close[t-10] * 100` | H3 |
+| `return_1`, `return_2`, `return_3`, `return_5`, `return_10`, `return_15`, `return_30` | Close-to-close percent return at each lag (same formula as `roc_10`, one column per lag) | research layer |
+| `cumulative_return_10` | Sum of the trailing 10 individual 1-candle percent returns (candle-by-candle accumulation, not identical to `return_10` due to compounding) | research layer |
+| `return_acceleration` | `return_1[t] - return_1[t-1]` — is the 1-candle move speeding up or slowing down | research layer |
 | `macd_line`, `macd_signal_line`, `macd_histogram` | Standard MACD(12,26,9): `EMA12(close) - EMA26(close)`, its own EMA9, and their difference | H11 |
 | `macd_cross_signal` | `+1` on the bar the MACD line crosses above its signal line, `-1` on a cross below, `0` otherwise (a one-bar trigger, not a sustained state) | H11 |
 | `cci_20` | Commodity Channel Index, period 20: `(typical_price - SMA20(typical_price)) / (0.015 * mean_abs_deviation)` | H12 |
 | `rci_9` | Rank Correlation Index, period 9: Spearman rank correlation between chronological order and price rank over the trailing 9 candles, scaled to [-100, 100] (rank-based, not magnitude-based — mechanistically distinct from RSI) | H13 |
 | `same_color_streak` | Signed count of consecutive same-color candles ending at `t` (e.g. `+3` = three bullish in a row); a doji (open == close) resets it to 0 | H1 |
 | `range_ratio_20` | `(high[t]-low[t]) / mean(range[t-20..t-1])` — current range vs. the average of the **preceding** 20 candles, so one huge candle can't inflate its own baseline | H2 |
+| `move_size_atr` | `abs(close[t]-close[t-1]) / atr_14[t]` — this candle's move relative to typical current volatility | research layer |
+| `rolling_std_return_20` | Population stdev of 1-candle percent returns over the trailing 20 candles | research layer |
 | `upper_wick_ratio`, `lower_wick_ratio`, `body_ratio` | Wick/body sizes as a fraction of the candle's full range; the three always sum to exactly 1 | H6 |
 | `engulfing_signal` | `+1` bullish engulfing bar (prior bearish, current bullish, current body fully contains prior body), `-1` bearish engulfing, `0` otherwise | H14 |
 | `inside_bar_breakout_signal` | `+1`/`-1` on the bar a close breaks above/below the high/low of the most recent inside-bar "mother bar", `0` while still consolidating or once already broken | H15 |
 | `donchian_high_20`, `donchian_low_20` | Highest high / lowest low of the **preceding** 20 candles (current candle excluded from its own baseline) | H5 |
+| `dist_to_high_atr_20`, `dist_to_low_atr_20` | Distance from close to `donchian_high_20`/`donchian_low_20`, scaled by `atr_14` | research layer |
+| `pct_position_in_range_20` | `(close - donchian_low_20) / (donchian_high_20 - donchian_low_20)` — 0 = at the recent low, 1 = at the recent high | research layer |
 | `atr_expansion_ratio` | `atr_14[t] / mean(atr_14[t-20..t-1])` — current volatility vs. its own recent (preceding-20) baseline; well above 1 = expansion | H8 |
 | `hour_utc` | UTC hour of the candle's open time (0-23) | H9 |
 | `day_of_week` | Monday=0 ... Sunday=6 | H9 |

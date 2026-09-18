@@ -14,7 +14,9 @@ import pandas as pd
 
 from otc_research.features import indicators
 
-FEATURE_SET_VERSION = "v3"
+FEATURE_SET_VERSION = "v4"
+
+RETURN_LAGS: tuple[int, ...] = (1, 2, 3, 5, 10, 15, 30)
 
 FEATURE_NAMES: list[str] = [
     "ema_12",
@@ -22,11 +24,15 @@ FEATURE_NAMES: list[str] = [
     "ema_slope_12_3",
     "rsi_14",
     "atr_14",
+    "adx_14",
     "bb_mid_20",
     "bb_upper_20",
     "bb_lower_20",
     "bb_pct_b_20",
     "roc_10",
+    *[f"return_{lag}" for lag in RETURN_LAGS],
+    "cumulative_return_10",
+    "return_acceleration",
     "macd_line",
     "macd_signal_line",
     "macd_histogram",
@@ -35,6 +41,8 @@ FEATURE_NAMES: list[str] = [
     "rci_9",
     "same_color_streak",
     "range_ratio_20",
+    "move_size_atr",
+    "rolling_std_return_20",
     "upper_wick_ratio",
     "lower_wick_ratio",
     "body_ratio",
@@ -42,6 +50,9 @@ FEATURE_NAMES: list[str] = [
     "inside_bar_breakout_signal",
     "donchian_high_20",
     "donchian_low_20",
+    "dist_to_high_atr_20",
+    "dist_to_low_atr_20",
+    "pct_position_in_range_20",
     "atr_expansion_ratio",
     "hour_utc",
     "day_of_week",
@@ -72,6 +83,7 @@ def compute_features(df: pd.DataFrame) -> pd.DataFrame:
     out["ema_slope_12_3"] = indicators.ema_slope(c, span=12, lookback=3)
     out["rsi_14"] = indicators.rsi(c, period=14)
     out["atr_14"] = indicators.atr(h, l, c, period=14)
+    out["adx_14"] = indicators.adx(h, l, c, period=14)
 
     mid, upper, lower, pct_b = indicators.bollinger_bands(c, period=20, num_std=2.0)
     out["bb_mid_20"] = mid
@@ -80,6 +92,11 @@ def compute_features(df: pd.DataFrame) -> pd.DataFrame:
     out["bb_pct_b_20"] = pct_b
 
     out["roc_10"] = indicators.roc(c, period=10)
+
+    for lag in RETURN_LAGS:
+        out[f"return_{lag}"] = indicators.roc(c, period=lag)
+    out["cumulative_return_10"] = indicators.cumulative_return(c, window=10)
+    out["return_acceleration"] = indicators.return_acceleration(c)
 
     macd_line, macd_signal_line, macd_histogram = indicators.macd(c)
     out["macd_line"] = macd_line
@@ -92,6 +109,8 @@ def compute_features(df: pd.DataFrame) -> pd.DataFrame:
 
     out["same_color_streak"] = indicators.same_color_streak(o, c)
     out["range_ratio_20"] = indicators.range_ratio(o, h, l, c, period=20)
+    out["move_size_atr"] = indicators.move_size_atr(c, h, l, period=14)
+    out["rolling_std_return_20"] = indicators.rolling_std_return(c, period=20)
 
     upper_wick_ratio, lower_wick_ratio, body_ratio = indicators.wick_ratios(o, h, l, c)
     out["upper_wick_ratio"] = upper_wick_ratio
@@ -103,6 +122,12 @@ def compute_features(df: pd.DataFrame) -> pd.DataFrame:
 
     out["donchian_high_20"] = indicators.donchian_high(h, period=20)
     out["donchian_low_20"] = indicators.donchian_low(l, period=20)
+
+    atr_14 = out["atr_14"]
+    out["dist_to_high_atr_20"] = indicators.dist_to_high_atr(c, h, l, atr_14, period=20)
+    out["dist_to_low_atr_20"] = indicators.dist_to_low_atr(c, h, l, atr_14, period=20)
+    out["pct_position_in_range_20"] = indicators.pct_position_in_range(c, h, l, period=20)
+
     out["atr_expansion_ratio"] = indicators.atr_expansion_ratio(h, l, c)
 
     hour = indicators.hour_of_day_utc(df["timestamp"])
