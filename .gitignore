@@ -16,4 +16,10 @@ logs/*
 *.sqlite
 *.sqlite3
 
+# research run outputs (e.g. scripts/run_binary_options_backtest.py's
+# JSONL, scripts/build_binary_options_report.py's CSV) -- regenerable
+# from the DB, not source; findings belong in the committed .md reports.
+data/*.jsonl
+data/*.csv
+
 .DS_Store
