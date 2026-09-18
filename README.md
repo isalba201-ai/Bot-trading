@@ -318,6 +318,17 @@ pytest
   accepted, 1 discovered session-bias condition mechanically cleared all
   four gates but is fragile and payout-dependent (crossover payout
   83.25%) — reported honestly, not treated as validated
+- [STEP10_EXTENDED_SEARCH_REPORT.md](STEP10_EXTENDED_SEARCH_REPORT.md) —
+  the two pieces of the original methodology that were built but never
+  run to completion: 3-way feature interactions (537,600 trials across
+  all 8 datasets) and 3 ML model families, escalated through the same
+  four-gate funnel via a new `ModelStrategy` wrapper. 193 evaluations;
+  3-way interactions surfaced far more raw FDR-significant hits than
+  2-way but none held up any better out-of-sample; one ML model
+  mechanically cleared all four gates but is reported as fragile
+  (payout crossover 85.0%, margin ~0, and 1-of-11 highly-correlated TEST
+  arrivals from the same dataset/window — a textbook multi-testing
+  false-positive signature)
 - [H21_CCI_RSI_MACD_BACKTEST.md](H21_CCI_RSI_MACD_BACKTEST.md) — a
   user-requested strategy (CCI(20)+RSI(14) overbought confirmed by a
   bearish MACD histogram + red candle → PUT) backtested at h=2/h=4 across
