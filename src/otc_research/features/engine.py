@@ -14,7 +14,7 @@ import pandas as pd
 
 from otc_research.features import indicators
 
-FEATURE_SET_VERSION = "v2"
+FEATURE_SET_VERSION = "v3"
 
 FEATURE_NAMES: list[str] = [
     "ema_12",
@@ -27,11 +27,19 @@ FEATURE_NAMES: list[str] = [
     "bb_lower_20",
     "bb_pct_b_20",
     "roc_10",
+    "macd_line",
+    "macd_signal_line",
+    "macd_histogram",
+    "macd_cross_signal",
+    "cci_20",
+    "rci_9",
     "same_color_streak",
     "range_ratio_20",
     "upper_wick_ratio",
     "lower_wick_ratio",
     "body_ratio",
+    "engulfing_signal",
+    "inside_bar_breakout_signal",
     "donchian_high_20",
     "donchian_low_20",
     "atr_expansion_ratio",
@@ -72,6 +80,16 @@ def compute_features(df: pd.DataFrame) -> pd.DataFrame:
     out["bb_pct_b_20"] = pct_b
 
     out["roc_10"] = indicators.roc(c, period=10)
+
+    macd_line, macd_signal_line, macd_histogram = indicators.macd(c)
+    out["macd_line"] = macd_line
+    out["macd_signal_line"] = macd_signal_line
+    out["macd_histogram"] = macd_histogram
+    out["macd_cross_signal"] = indicators.macd_cross_signal(macd_line, macd_signal_line)
+
+    out["cci_20"] = indicators.cci(h, l, c, period=20)
+    out["rci_9"] = indicators.rci(c, period=9)
+
     out["same_color_streak"] = indicators.same_color_streak(o, c)
     out["range_ratio_20"] = indicators.range_ratio(o, h, l, c, period=20)
 
@@ -79,6 +97,9 @@ def compute_features(df: pd.DataFrame) -> pd.DataFrame:
     out["upper_wick_ratio"] = upper_wick_ratio
     out["lower_wick_ratio"] = lower_wick_ratio
     out["body_ratio"] = body_ratio
+
+    out["engulfing_signal"] = indicators.engulfing_signal(o, c)
+    out["inside_bar_breakout_signal"] = indicators.inside_bar_breakout_signal(h, l, c)
 
     out["donchian_high_20"] = indicators.donchian_high(h, period=20)
     out["donchian_low_20"] = indicators.donchian_low(l, period=20)

@@ -31,6 +31,16 @@ INITIAL_HYPOTHESES = [
      "Time-of-day or session bias independent of any price-action signal."),
     ("H10", "Trend + structure + momentum",
      "Combined EMA-slope trend, market structure, and momentum confirmation."),
+    ("H11", "MACD signal-line crossover",
+     "MACD line crossing its signal line predicts continuation in the crossing direction."),
+    ("H12", "CCI extreme reversion",
+     "Commodity Channel Index beyond +-100 predicts reversion."),
+    ("H13", "RCI extreme reversion",
+     "Rank Correlation Index beyond +-80 predicts reversion."),
+    ("H14", "Engulfing candle reversal",
+     "A bullish/bearish engulfing candle predicts a reversal."),
+    ("H15", "Inside-bar breakout continuation",
+     "Breakout of an inside-bar (mother bar) range predicts continuation."),
 ]
 
 

@@ -32,6 +32,24 @@ robustness testing (Phases 6-8), none of which exist yet either.
 | H8 | Volatility expansion following a contraction/squeeze (ATR regime change) | registered |
 | H9 | Hour-of-day / session bias, independent of any price-action signal | registered |
 | H10 | Combined trend (EMA slope) + market structure + momentum confirmation | registered |
+| H11 | MACD line crossing its signal line predicts continuation in the crossing direction | registered |
+| H12 | CCI extreme (beyond ±100) → reversion | registered |
+| H13 | RCI (rank correlation index) extreme (beyond ±80) → reversion | registered |
+| H14 | Bullish/bearish engulfing candle → reversal | registered |
+| H15 | Breakout of an inside-bar ("mother bar") range → continuation | registered |
+
+H11-H15 were added after H1-H10 had already been run against real data
+and shown no robust edge (see "What real data has actually shown so
+far" below) — registered here, in this table, before any of them were
+run against anything, same discipline as H1-H10. H11 (MACD) and H12/H13
+(CCI/RCI) round out the indicator families used across H1-H10 (trend,
+momentum-by-magnitude, volatility, bands) with a classic
+trend-following/momentum oscillator (MACD) and two more overbought/
+oversold oscillators (CCI, RCI) that are mechanistically distinct from
+RSI (RCI in particular is rank-based, not magnitude-based). H14/H15 round
+out the price-action side (H1/H2/H6 already covered streaks, extreme
+range, and wick rejection) with the two most commonly cited two-candle
+and consolidation-breakout patterns that weren't covered yet.
 
 ## Status values
 
@@ -88,6 +106,11 @@ technical-analysis concepts.
 | H8 | `strategies/h8_volatility_expansion.py::H8VolatilityExpansion` | `atr_expansion_ratio` clears a threshold; direction from `ema_slope_12_3` |
 | H9 | `strategies/h9_session_bias.py::H9SessionBias` | fires only at one explicit `(hour_utc, direction)` pair — see the file's docstring for why this one can't be a single fixed rule |
 | H10 | `strategies/h10_combined.py::H10CombinedTrendStructureMomentum` | `ema_slope_12_3`, `structure_bias`, and `roc_10` all agree |
+| H11 | `strategies/h11_macd_cross.py::H11MacdCrossContinuation` | `macd_cross_signal` fires (+1/-1) |
+| H12 | `strategies/h12_cci_extreme.py::H12CciExtremeReversion` | `cci_20` clears a threshold (default ±100) → fade |
+| H13 | `strategies/h13_rci_extreme.py::H13RciExtremeReversion` | `rci_9` clears a threshold (default ±80) → fade |
+| H14 | `strategies/h14_engulfing.py::H14EngulfingReversal` | `engulfing_signal` fires (+1/-1) |
+| H15 | `strategies/h15_inside_bar_breakout.py::H15InsideBarBreakout` | `inside_bar_breakout_signal` fires (+1/-1) |
 
 Every threshold above is a constructor parameter, not a hardcoded
 constant, specifically so Phase 6's robustness/sensitivity sweeps can
@@ -166,6 +189,41 @@ train split:
   demonstrated rather than just asserted: naive per-config significance
   testing on a wide scan manufactures "signals" that a correction for
   the number of comparisons makes disappear. **No hour-of-day bias found.**
+
+### H11-H15 (MACD, CCI, RCI, engulfing, inside-bar breakout)
+
+Registered above, then run against real EUR/USD, GBP/USD, and USD/JPY
+1h data, train split, optimistic scenario (15 pair×hypothesis
+combinations — see the multiple-testing note above: at 95% confidence,
+pure chance predicts roughly 1 "hit" out of 15):
+
+- **H11 (MACD cross), H14 (engulfing), H15 (inside-bar breakout): no
+  signal on any pair.** Every 95% CI straddled or sat below 50%.
+- **H12 (CCI extreme) and H13 (RCI extreme) each cleared a 95% CI on
+  GBP/USD only** (H12: 53.3%, n=1134; H13: 54.8%, n=809) — out of 15
+  tests, finding 2 borderline hits is within what chance alone predicts.
+  Both were checked against GBP/USD's own validation split before being
+  taken seriously, exactly like H4 was: **neither replicated** (H12 drops
+  to 50.5%; H13 to 52.4%, both no longer clearing 50%), and the realistic
+  execution scenario erases both regardless (H12 45.1%, H13 42.2%).
+
+**Combined verdict for H11-H15: no credible edge on any of the three
+pairs.** See `Hypothesis.notes` for the exact per-pair figures.
+
+### Where this leaves the project
+
+15 hypotheses (H1-H15), 3 real currency pairs, two timeframes for the
+original 10, a full 48-way session-bias scan, cross-pair checks, and
+robustness/walk-forward testing on the single most promising candidate
+found (H4) — none has produced a credible, replicated edge once
+execution costs and independent validation are applied. This is not a
+sign the methodology is broken; consistent, well-behaved null results
+across genuinely different indicator families (trend, momentum,
+oscillators, volatility, price action, rank-based, time-of-day) are
+exactly what "there is no easily-found edge in liquid spot Forex at
+1-hour granularity with these tools" looks like when tested honestly,
+and is itself a legitimate research conclusion — see BACKTESTING.md's
+edge classification, none of which any hypothesis here has earned.
 
 ## Explicitly forbidden language
 

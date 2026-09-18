@@ -58,6 +58,82 @@ def rsi(close: pd.Series, period: int = 14) -> pd.Series:
     return result.where(avg_loss != 0.0, 100.0)
 
 
+def macd(
+    close: pd.Series, fast: int = 12, slow: int = 26, signal: int = 9
+) -> tuple[pd.Series, pd.Series, pd.Series]:
+    """Returns (macd_line, signal_line, histogram) (H11). Self-contained
+    (computes its own fast/slow EMAs rather than reusing ema_12/ema_26) so
+    changing MACD's own periods never silently changes those other
+    features.
+    """
+    macd_line = ema(close, fast) - ema(close, slow)
+    signal_line = macd_line.ewm(span=signal, adjust=False, min_periods=signal).mean()
+    histogram = macd_line - signal_line
+    return macd_line, signal_line, histogram
+
+
+def macd_cross_signal(macd_line: pd.Series, signal_line: pd.Series) -> pd.Series:
+    """+1 on the bar where the MACD line crosses from at/below to above
+    its signal line, -1 on a cross from at/above to below, 0 otherwise
+    (H11) — a discrete one-bar trigger, not a sustained state. Sequential
+    (like same_color_streak/structure_bias), still causal: bar i's value
+    only compares bar i to bar i-1.
+    """
+    diff = (macd_line - signal_line).to_numpy()
+    out = np.zeros(len(diff))
+    prev_sign = 0.0
+    for i, d in enumerate(diff):
+        if np.isnan(d):
+            prev_sign = 0.0
+            continue
+        sign = 1.0 if d > 0 else (-1.0 if d < 0 else 0.0)
+        if prev_sign != 0.0 and sign != 0.0 and sign != prev_sign:
+            out[i] = sign
+        if sign != 0.0:
+            prev_sign = sign
+    return pd.Series(out, index=macd_line.index)
+
+
+def cci(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 20) -> pd.Series:
+    """Commodity Channel Index (H12): how far the typical price sits from
+    its own recent moving average, scaled by mean absolute deviation.
+    Conventionally ranges roughly -100..+100 but is not hard-bounded.
+    """
+    typical_price = (high + low + close) / 3.0
+    sma_tp = typical_price.rolling(period, min_periods=period).mean()
+    mean_deviation = typical_price.rolling(period, min_periods=period).apply(
+        lambda window: np.mean(np.abs(window - window.mean())), raw=True
+    )
+    return (typical_price - sma_tp) / (0.015 * mean_deviation.replace(0.0, np.nan))
+
+
+def rci(close: pd.Series, period: int = 9) -> pd.Series:
+    """Rank Correlation Index (H13): Spearman rank correlation between
+    chronological order and price rank over the trailing ``period``
+    candles, scaled to [-100, 100]. +100 = price rose on every candle in
+    the window (in rank terms), -100 = fell on every candle. A popular
+    short-term momentum/exhaustion indicator in Japanese retail trading,
+    conceptually different from RSI/momentum (rank-based, not
+    magnitude-based).
+
+    Ties are broken by original (chronological) order rather than
+    averaged — a deliberate simplification that's immaterial for
+    continuous FX close prices, where an exact tie within one window is
+    vanishingly rare.
+    """
+
+    def _rci_window(window: np.ndarray) -> float:
+        n = len(window)
+        time_rank = np.arange(1, n + 1, dtype=float)
+        price_rank = np.empty(n, dtype=float)
+        sorter = np.argsort(window, kind="mergesort")
+        price_rank[sorter] = np.arange(1, n + 1, dtype=float)
+        d_squared_sum = np.sum((time_rank - price_rank) ** 2)
+        return (1.0 - 6.0 * d_squared_sum / (n * (n**2 - 1))) * 100.0
+
+    return close.rolling(period, min_periods=period).apply(_rci_window, raw=True)
+
+
 # --- Volatility ---------------------------------------------------------
 
 
@@ -174,6 +250,65 @@ def donchian_low(low: pd.Series, period: int = 20) -> pd.Series:
     """Lowest low of the PRECEDING ``period`` candles, excluding the
     current one (H5 breakout baseline)."""
     return low.shift(1).rolling(period, min_periods=period).min()
+
+
+def engulfing_signal(open_: pd.Series, close: pd.Series) -> pd.Series:
+    """+1 on a bullish engulfing bar (previous candle bearish, current
+    bullish, current body fully contains the previous body), -1 on a
+    bearish engulfing bar, 0 otherwise (H14). Classic two-candle price
+    action reversal pattern; causal, only needs bar i and i-1.
+    """
+    prev_open = open_.shift(1)
+    prev_close = close.shift(1)
+    prev_bearish = prev_close < prev_open
+    prev_bullish = prev_close > prev_open
+    curr_bullish = close > open_
+    curr_bearish = close < open_
+
+    bullish_engulf = prev_bearish & curr_bullish & (open_ <= prev_close) & (close >= prev_open)
+    bearish_engulf = prev_bullish & curr_bearish & (open_ >= prev_close) & (close <= prev_open)
+
+    out = pd.Series(0.0, index=open_.index)
+    out[bullish_engulf.fillna(False)] = 1.0
+    out[bearish_engulf.fillna(False)] = -1.0
+    return out
+
+
+def inside_bar_breakout_signal(high: pd.Series, low: pd.Series, close: pd.Series) -> pd.Series:
+    """Tracks the most recent "mother bar" — the candle immediately
+    before an inside bar (a candle whose full range sits inside the
+    previous one, a classic price-action consolidation signal). +1 on
+    the bar where close first breaks above the mother bar's high, -1 on
+    a break below its low, 0 while still consolidating inside or once a
+    breakout has already fired/been superseded by a newer inside bar
+    (H15). Sequential state (like structure_bias), still causal: bar i's
+    value only depends on bars <= i.
+    """
+    h = high.to_numpy()
+    l = low.to_numpy()
+    c = close.to_numpy()
+    n = len(h)
+    out = np.zeros(n)
+    mother_high = np.nan
+    mother_low = np.nan
+    active = False
+
+    for i in range(1, n):
+        is_inside = h[i] <= h[i - 1] and l[i] >= l[i - 1]
+        if is_inside:
+            mother_high = h[i - 1]
+            mother_low = l[i - 1]
+            active = True
+            continue
+        if active:
+            if c[i] > mother_high:
+                out[i] = 1.0
+                active = False
+            elif c[i] < mother_low:
+                out[i] = -1.0
+                active = False
+
+    return pd.Series(out, index=high.index)
 
 
 # --- Time / session -------------------------------------------------------

@@ -33,11 +33,16 @@ from otc_research.strategies.h7_rsi_extreme import H7RsiExtremeConfirmed
 from otc_research.strategies.h8_volatility_expansion import H8VolatilityExpansion
 from otc_research.strategies.h9_session_bias import H9SessionBias
 from otc_research.strategies.h10_combined import H10CombinedTrendStructureMomentum
+from otc_research.strategies.h11_macd_cross import H11MacdCrossContinuation
+from otc_research.strategies.h12_cci_extreme import H12CciExtremeReversion
+from otc_research.strategies.h13_rci_extreme import H13RciExtremeReversion
+from otc_research.strategies.h14_engulfing import H14EngulfingReversal
+from otc_research.strategies.h15_inside_bar_breakout import H15InsideBarBreakout
 
 #: Hypothesis code -> strategy class. H9 is deliberately excluded: it
 #: needs an (hour, direction) pair to test one specific bias hypothesis
 #: at a time (see its module docstring for why), so it can't be
-#: zero-argument constructed like the other nine.
+#: zero-argument constructed like the others.
 BASELINE_STRATEGIES = {
     "H1": H1StreakContinuation,
     "H2": H2ExtremeRangeReversion,
@@ -48,6 +53,11 @@ BASELINE_STRATEGIES = {
     "H7": H7RsiExtremeConfirmed,
     "H8": H8VolatilityExpansion,
     "H10": H10CombinedTrendStructureMomentum,
+    "H11": H11MacdCrossContinuation,
+    "H12": H12CciExtremeReversion,
+    "H13": H13RciExtremeReversion,
+    "H14": H14EngulfingReversal,
+    "H15": H15InsideBarBreakout,
 }
 
 __all__ = [
@@ -62,4 +72,9 @@ __all__ = [
     "H8VolatilityExpansion",
     "H9SessionBias",
     "H10CombinedTrendStructureMomentum",
+    "H11MacdCrossContinuation",
+    "H12CciExtremeReversion",
+    "H13RciExtremeReversion",
+    "H14EngulfingReversal",
+    "H15InsideBarBreakout",
 ]

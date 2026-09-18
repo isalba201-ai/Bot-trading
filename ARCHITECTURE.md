@@ -69,7 +69,7 @@ src/otc_research/
     robustness.py             # parameter/expiry/time-window sweeps + fragility verdict
     walkforward.py             # sliding train/test folds + mean/dispersion/worst-fold summary
   strategies/
-    h1_streak.py .. h10_combined.py  # one Strategy implementation per hypothesis (STRATEGIES.md)
+    h1_streak.py .. h15_inside_bar_breakout.py  # one Strategy implementation per hypothesis (STRATEGIES.md)
     __init__.py               # BASELINE_STRATEGIES registry (H9 excluded, needs explicit params)
   utils/
     logging.py            # shared logger (stderr + logs/otc_research.log)

@@ -123,6 +123,90 @@ def test_trading_session_code_buckets():
     assert list(codes) == [1.0, 1.0, 3.0, 4.0, 0.0]
 
 
+def test_macd_line_matches_ema_difference():
+    close = _series(range(1, 60))
+    macd_line, signal_line, histogram = indicators.macd(close, fast=12, slow=26, signal=9)
+    expected = indicators.ema(close, 12) - indicators.ema(close, 26)
+    pd.testing.assert_series_equal(macd_line, expected, check_names=False)
+    valid = histogram.notna()
+    assert np.allclose(histogram[valid], (macd_line - signal_line)[valid])
+
+
+def test_macd_cross_signal_fires_once_on_a_clean_reversal():
+    # A long falling run (long enough that MACD is still net negative by
+    # the time its signal line first becomes valid) followed by a long
+    # rising run: MACD line starts negative relative to its signal line
+    # and eventually crosses above it exactly once, on a clean V-shaped
+    # reversal.
+    close = _series(list(range(100, 20, -1)) + list(range(20, 120)))
+    macd_line, signal_line, _ = indicators.macd(close)
+    cross = indicators.macd_cross_signal(macd_line, signal_line)
+    assert (cross == 1.0).sum() == 1
+    assert (cross == -1.0).sum() == 0
+    crossing_idx = cross[cross == 1.0].index[0]
+    # confirms the actual crossover condition at that bar
+    assert macd_line.iloc[crossing_idx] > signal_line.iloc[crossing_idx]
+    assert macd_line.iloc[crossing_idx - 1] <= signal_line.iloc[crossing_idx - 1]
+
+
+def test_cci_is_nan_for_a_constant_series():
+    # zero mean deviation -> 0/0, not a fabricated 0
+    high = _series([1.05] * 30)
+    low = _series([0.95] * 30)
+    close = _series([1.00] * 30)
+    result = indicators.cci(high, low, close, period=20)
+    assert result.dropna().empty
+
+
+def test_cci_is_strongly_positive_on_a_price_spike():
+    n = 25
+    high = _series([1.00] * (n - 1) + [1.20])
+    low = _series([0.99] * (n - 1) + [1.19])
+    close = _series([1.00] * (n - 1) + [1.20])
+    result = indicators.cci(high, low, close, period=20)
+    assert result.iloc[-1] > 100
+
+
+def test_rci_is_100_on_a_strictly_increasing_window():
+    close = _series(range(1, 15))
+    result = indicators.rci(close, period=9)
+    assert np.isclose(result.iloc[-1], 100.0)
+
+
+def test_rci_is_minus_100_on_a_strictly_decreasing_window():
+    close = _series(range(15, 1, -1))
+    result = indicators.rci(close, period=9)
+    assert np.isclose(result.iloc[-1], -100.0)
+
+
+def test_engulfing_signal_detects_bullish_and_bearish_patterns():
+    # bar0: bearish (1.10 -> 1.00); bar1: bullish engulfing (0.99 -> 1.11)
+    # bar2: bullish (1.11 -> 1.15); bar3: bearish engulfing (1.16 -> 0.90)
+    open_ = _series([1.10, 0.99, 1.11, 1.16])
+    close = _series([1.00, 1.11, 1.15, 0.90])
+    result = indicators.engulfing_signal(open_, close)
+    assert list(result) == [0.0, 1.0, 0.0, -1.0]
+
+
+def test_inside_bar_breakout_signal_fires_on_the_actual_breakout():
+    # bar0: mother bar (wide range). bar1: inside bar (fully within bar0).
+    # bar2: still inside consolidation, no breakout yet. bar3: closes
+    # above the mother bar's high -> breakout signal.
+    high = _series([1.20, 1.15, 1.14, 1.25])
+    low = _series([1.00, 1.05, 1.06, 1.16])
+    close = _series([1.10, 1.10, 1.10, 1.22])
+    result = indicators.inside_bar_breakout_signal(high, low, close)
+    assert list(result) == [0.0, 0.0, 0.0, 1.0]
+
+
+def test_inside_bar_breakout_signal_detects_downward_breakout():
+    high = _series([1.20, 1.15, 1.05])
+    low = _series([1.00, 1.05, 0.95])
+    close = _series([1.10, 1.10, 0.97])
+    result = indicators.inside_bar_breakout_signal(high, low, close)
+    assert list(result) == [0.0, 0.0, -1.0]
+
+
 def test_structure_bias_detects_uptrend_swing_pattern():
     # Two confirmed swing lows (index 3 then 9, each higher than the last)
     # and two confirmed swing highs (index 6 then 12, each higher than the

@@ -71,15 +71,20 @@ scenarios reporting Wilson-CI-grounded win rate/expectancy, the H1-H10
 baseline strategies themselves, a robustness/sensitivity sweep runner,
 and walk-forward analysis (mean/dispersion/worst-fold win rate across
 sliding time folds) (see [BACKTESTING.md](BACKTESTING.md) /
-[STRATEGIES.md](STRATEGIES.md)). **All 9 zero-argument hypotheses have
-actually been run against real EUR/USD data** (5m and 1h, via Twelve
-Data) — see STRATEGIES.md's "What real data has actually shown so far"
-for the honest result: no robust edge yet. H4 looked promising at first;
-a robustness sweep showed it doesn't hold up across time periods, and a
-12-fold walk-forward confirmed it under the realistic execution
-scenario, 0 of 12 folds showed an edge. Monte Carlo testing and the
-on-demand "BUSCAR SEÑAL" UI — everything the signal engine needs to show
-a non-fabricated confidence number — are **not built yet**.
+[STRATEGIES.md](STRATEGIES.md)). **15 hypotheses total (H1-H15) have
+actually been run against real EUR/USD, GBP/USD, and USD/JPY data** (5m
+and 1h, via Twelve Data) — see STRATEGIES.md's "What real data has
+actually shown so far" for the honest result: **no credible, replicated
+edge on any of them.** H4 looked promising at first; a robustness sweep
+and a 12-fold walk-forward showed it doesn't hold up across time periods
+or realistic execution costs. H11-H15 (MACD, CCI, RCI, engulfing,
+inside-bar breakout, added after a request to try more indicator
+families) turned up two border-line hits (CCI and RCI on GBP/USD) that
+did not replicate on that pair's own validation split — a clean
+demonstration of exactly the multiple-testing trap BACKTESTING.md warns
+about. Monte Carlo testing and the on-demand "BUSCAR SEÑAL" UI —
+everything the signal engine needs to show a non-fabricated confidence
+number — are **not built yet**.
 
 | Phase | Scope | Status |
 |---|---|---|

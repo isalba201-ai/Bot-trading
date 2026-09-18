@@ -18,11 +18,17 @@ from otc_research.strategies.h7_rsi_extreme import H7RsiExtremeConfirmed
 from otc_research.strategies.h8_volatility_expansion import H8VolatilityExpansion
 from otc_research.strategies.h9_session_bias import H9SessionBias
 from otc_research.strategies.h10_combined import H10CombinedTrendStructureMomentum
+from otc_research.strategies.h11_macd_cross import H11MacdCrossContinuation
+from otc_research.strategies.h12_cci_extreme import H12CciExtremeReversion
+from otc_research.strategies.h13_rci_extreme import H13RciExtremeReversion
+from otc_research.strategies.h14_engulfing import H14EngulfingReversal
+from otc_research.strategies.h15_inside_bar_breakout import H15InsideBarBreakout
 
 
-def test_baseline_registry_covers_nine_zero_arg_strategies():
+def test_baseline_registry_covers_fourteen_zero_arg_strategies():
     assert set(BASELINE_STRATEGIES) == {
         "H1", "H2", "H3", "H4", "H5", "H6", "H7", "H8", "H10",
+        "H11", "H12", "H13", "H14", "H15",
     }
     for code, cls in BASELINE_STRATEGIES.items():
         strategy = cls()
@@ -145,3 +151,53 @@ def test_h10_requires_all_three_signals_to_agree():
     assert s.decide(agree_up) == "CALL"
     assert s.decide(agree_down) == "PUT"
     assert s.decide(partial) is None
+
+
+# --- H11 ----------------------------------------------------------------
+
+
+def test_h11_follows_macd_cross_direction():
+    s = H11MacdCrossContinuation()
+    assert s.decide({"macd_cross_signal": 1.0}) == "CALL"
+    assert s.decide({"macd_cross_signal": -1.0}) == "PUT"
+    assert s.decide({"macd_cross_signal": 0.0}) is None
+
+
+# --- H12 ----------------------------------------------------------------
+
+
+def test_h12_fades_cci_extremes():
+    s = H12CciExtremeReversion(threshold=100.0)
+    assert s.decide({"cci_20": 120.0}) == "PUT"
+    assert s.decide({"cci_20": -120.0}) == "CALL"
+    assert s.decide({"cci_20": 50.0}) is None
+
+
+# --- H13 ----------------------------------------------------------------
+
+
+def test_h13_fades_rci_extremes():
+    s = H13RciExtremeReversion(threshold=80.0)
+    assert s.decide({"rci_9": 90.0}) == "PUT"
+    assert s.decide({"rci_9": -90.0}) == "CALL"
+    assert s.decide({"rci_9": 0.0}) is None
+
+
+# --- H14 ----------------------------------------------------------------
+
+
+def test_h14_follows_engulfing_direction():
+    s = H14EngulfingReversal()
+    assert s.decide({"engulfing_signal": 1.0}) == "CALL"
+    assert s.decide({"engulfing_signal": -1.0}) == "PUT"
+    assert s.decide({"engulfing_signal": 0.0}) is None
+
+
+# --- H15 ----------------------------------------------------------------
+
+
+def test_h15_follows_inside_bar_breakout_direction():
+    s = H15InsideBarBreakout()
+    assert s.decide({"inside_bar_breakout_signal": 1.0}) == "CALL"
+    assert s.decide({"inside_bar_breakout_signal": -1.0}) == "PUT"
+    assert s.decide({"inside_bar_breakout_signal": 0.0}) is None
