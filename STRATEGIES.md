@@ -326,6 +326,59 @@ codebase has shown a credible, replicated edge at binary-options-length
 expiries, and the shorter the expiry, the worse the execution-cost
 problem gets, not better.**
 
+### Relaxing the timeframe limit to 15-60 minutes
+
+After the 1-5 minute result above, the constraint was relaxed to test
+whether H16-H20 fare better where execution costs matter proportionally
+less. They were re-run on the already-ingested real 1h data (EUR/USD,
+GBP/USD, USD/JPY, train split) and on a freshly-fetched real EUR/USD
+15-minute series (a different ~52-day window, at 15/30/60-minute
+expiries):
+
+- **H16, H18, H19, H20 at 1h: no credible edge**, consistent with every
+  shorter timeframe already tested.
+- **H17 (Bollinger + RCI) at 1h produced the single strongest,
+  most cross-pair-consistent result of the entire investigation**:
+  60.8% (EUR/USD), 60.6% (GBP/USD), 58.6% (USD/JPY) on the optimistic
+  scenario, train split, all three clearing a 95% CI above 50% with
+  reasonable samples (n=145-209). This is exactly the kind of number
+  that would look like "found it" without the rest of this
+  methodology. It was run through every remaining check before being
+  taken seriously:
+  - **Validation split**: only 2/3 pairs still clear 50% on the
+    optimistic scenario (EUR/USD 62.3%, USD/JPY 61.5%; GBP/USD drops to
+    49.4%), and **0/3 pairs clear 50% on the realistic scenario**
+    (EUR/USD 46.7%, GBP/USD 32.9%, USD/JPY 36.0%).
+  - **12-fold walk-forward on EUR/USD/1h**: optimistic mean win rate
+    57.8% (stdev 11.2pp) with 11/12 folds individually positive — the
+    most directionally consistent walk-forward result of the whole
+    investigation — but only 1 of 8 sufficiently-sampled folds
+    individually significant. Under the **realistic scenario, the mean
+    drops to 48.1% and 0/8 folds show an edge.**
+  - **Fresh out-of-window check**: run again on a different, more
+    recent EUR/USD data window (15-minute candles, 15/30/60-minute
+    expiries) — 50.7%-52.9%, no longer clearing 50% at all.
+
+  H17 does not survive any of the three independent checks it was put
+  through (validation, walk-forward, out-of-window replication) once
+  realistic execution costs are applied, despite being the best-looking
+  candidate across every earlier, less rigorous check. **No credible
+  edge.**
+
+### Where this leaves the timeframe question
+
+Across 1-minute, 5-minute, 15-minute, and 1-hour expiries, on three real
+currency pairs, with single and combined indicators: **the pattern is
+the same at every timeframe tested, including the ones with the most
+favorable cost-to-signal ratio.** Longer timeframes do measurably reduce
+how much realistic execution costs erode an apparent edge (roughly
+15-25 points at 1h vs. 30-50 points at 1-5 minutes) — but in every case
+tested so far, including the strongest candidate found at the most
+favorable timeframe, the underlying apparent edge itself did not survive
+independent replication even before execution costs were the deciding
+factor. This is no longer a statement about any one hypothesis; it is
+the accumulated result of the entire investigation to date.
+
 ## Explicitly forbidden language
 
 Never describe any hypothesis or strategy, at any status, as: "infallible",
