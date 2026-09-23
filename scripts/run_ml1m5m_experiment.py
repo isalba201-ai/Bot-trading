@@ -47,7 +47,7 @@ from collections import Counter
 from otc_research.backtest.execution import delay_only_scenario
 from otc_research.backtest.metrics import break_even_win_rate
 from otc_research.backtest.splits import compute_temporal_split
-from otc_research.backtest.walkforward import generate_folds
+from otc_research.backtest.walkforward import compute_walk_forward_folds
 from otc_research.config import load_config
 from otc_research.db.session import get_engine, get_session_factory, init_db
 from otc_research.features.engine import FEATURE_SET_VERSION
@@ -114,13 +114,20 @@ def _load_windowed_dataset(session):
     return df
 
 
-def _walk_forward_folds(df, train_fraction, validation_fraction, *, n_folds=N_WALK_FORWARD_FOLDS):
-    history_start, history_end = df["timestamp"].min(), df["timestamp"].max()
-    total_span = history_end - history_start
-    train_val_span = total_span * (train_fraction + validation_fraction)
-    train_val_end = history_start + train_val_span
-    fold_span = train_val_span / n_folds
-    return generate_folds(history_start, train_val_end, train_span=fold_span, test_span=fold_span)
+def _walk_forward_folds(session, backtest_config, *, n_folds=N_WALK_FORWARD_FOLDS):
+    """Delegates to ``backtest.walkforward.compute_walk_forward_folds``,
+    which bounds folds to the ROW-based TRAIN+VALIDATION boundary (via
+    ``backtest.engine.compute_split_windows``) rather than a calendar-time
+    proportion estimate -- the estimate is what let a fold overflow ~2h
+    into TEST in the original run (see the ML_1M5M split-mismatch
+    investigation). Bounded to ``[WINDOW_START, WINDOW_END)`` so it can
+    never see the unrelated, already-used EUR_USD/1m block sitting
+    elsewhere in the same table either.
+    """
+    return compute_walk_forward_folds(
+        session, ASSET, TIMEFRAME, backtest_config,
+        start=WINDOW_START, end=WINDOW_END, n_folds=n_folds,
+    )
 
 
 def _run_discovery(session, train_df, run_id_prefix):
@@ -180,7 +187,7 @@ def _run_ml_fit(train_df, validation_df):
     return promising
 
 
-def _evaluate_condition_both_scenarios(session, entry, backtest_config, folds, thresholds, run_id_prefix, rng_seed):
+def _evaluate_condition_both_scenarios(session, entry, backtest_config, folds, thresholds, run_id_prefix, rng_seed, *, allow_test=True):
     out = []
     label = f"{run_id_prefix}:{entry['target_col']}:{entry['condition'].label()}"
     for scenario_name, scenario in SCENARIOS:
@@ -189,12 +196,13 @@ def _evaluate_condition_both_scenarios(session, entry, backtest_config, folds, t
             backtest_config, feature_set_version=FEATURE_SET_VERSION, payout=DEFAULT_PAYOUT,
             walk_forward_folds=folds, thresholds=thresholds, scenario=scenario, rng_seed=rng_seed,
             label=f"{label}:{scenario_name}",
+            start=WINDOW_START, end=WINDOW_END, allow_test=allow_test,
         )
         out.append((scenario_name, verdict, label))
     return out
 
 
-def _evaluate_model_both_scenarios(session, entry, backtest_config, folds, thresholds, run_id_prefix, rng_seed):
+def _evaluate_model_both_scenarios(session, entry, backtest_config, folds, thresholds, run_id_prefix, rng_seed, *, allow_test=True):
     fit = entry["fit"]
     label = f"{run_id_prefix}:{entry['target_col']}:model_{fit.family}"
     out = []
@@ -216,6 +224,7 @@ def _evaluate_model_both_scenarios(session, entry, backtest_config, folds, thres
             feature_set_version=FEATURE_SET_VERSION, payout=DEFAULT_PAYOUT,
             walk_forward_folds=folds, strategy_factory=strategy_factory,
             perturbation_param_grid=param_grid, thresholds=thresholds, scenario=scenario, rng_seed=rng_seed,
+            start=WINDOW_START, end=WINDOW_END, allow_test=allow_test,
         )
         out.append((scenario_name, verdict, label))
     return out
@@ -227,6 +236,11 @@ def main() -> None:
     parser.add_argument("--run-id-prefix", default=None)
     parser.add_argument("--rng-seed", type=int, default=0)
     parser.add_argument("--output", default="data/ml1m5m_experiment_results.jsonl")
+    parser.add_argument(
+        "--no-test", action="store_true",
+        help="Stop every candidate after gate 3 (walk-forward); TEST is never touched "
+             "(evaluate_candidacy(allow_test=False)). Use for a baseline/debugging re-run.",
+    )
     args = parser.parse_args()
 
     config = load_config(args.config)
@@ -255,7 +269,7 @@ def main() -> None:
         "TEST: %s -> %s (n=%d)", test_df["timestamp"].min(), test_df["timestamp"].max(), len(test_df)
     )
 
-    folds = _walk_forward_folds(df, config.backtest.train_fraction, config.backtest.validation_fraction)
+    folds = _walk_forward_folds(session, config.backtest)
 
     candidates: list[dict] = []
     candidates.extend(_run_discovery(session, train_df, run_id_prefix))
@@ -267,11 +281,13 @@ def main() -> None:
         for entry in candidates:
             if entry["kind"] == "condition":
                 results = _evaluate_condition_both_scenarios(
-                    session, entry, config.backtest, folds, thresholds, run_id_prefix, args.rng_seed
+                    session, entry, config.backtest, folds, thresholds, run_id_prefix, args.rng_seed,
+                    allow_test=not args.no_test,
                 )
             else:
                 results = _evaluate_model_both_scenarios(
-                    session, entry, config.backtest, folds, thresholds, run_id_prefix, args.rng_seed
+                    session, entry, config.backtest, folds, thresholds, run_id_prefix, args.rng_seed,
+                    allow_test=not args.no_test,
                 )
             for scenario_name, verdict, label in results:
                 logger.info(

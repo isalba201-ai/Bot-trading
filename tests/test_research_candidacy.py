@@ -178,6 +178,96 @@ def test_evaluate_candidacy_touches_test_split_exactly_once_on_acceptance(moment
     assert len(test_runs) == 1  # exactly one scenario (realistic) x one gate-4 call
 
 
+# --- start/end window restriction + allow_test (split-mismatch fix) -------
+
+
+def test_evaluate_candidacy_allow_test_false_stops_before_test(momentum_session):
+    session, start, feature_set_version = momentum_session
+    verdict = evaluate_condition_candidacy(
+        session,
+        _momentum_condition(),
+        "CALL",
+        60,
+        ASSET,
+        TIMEFRAME,
+        _backtest_config(),
+        feature_set_version=feature_set_version,
+        payout=0.85,
+        walk_forward_folds=_train_val_folds(start),
+        label="planted_momentum",
+        allow_test=False,
+    )
+
+    assert verdict.accepted is False
+    assert verdict.rejected_at_gate == "test_deferred"
+    # gates 1-3 still ran and their results are reported normally:
+    assert verdict.train_sample_size >= 100
+    assert verdict.robustness is not None
+    assert verdict.robustness.classification == "consistent_direction"
+    assert verdict.walk_forward is not None
+    assert verdict.walk_forward.worst_fold_win_rate > 0.5
+    # gate 4 genuinely never ran:
+    assert verdict.test_sample_size is None
+    assert verdict.test_win_rate is None
+    test_runs = session.query(BacktestRun).filter_by(split="test").all()
+    assert len(test_runs) == 0
+
+
+def test_evaluate_candidacy_explicit_full_window_matches_default_byte_for_byte(momentum_session):
+    session, start, feature_set_version = momentum_session
+    kwargs = dict(
+        session=session,
+        condition=_momentum_condition(),
+        direction="CALL",
+        expiry_seconds=60,
+        asset=ASSET,
+        timeframe=TIMEFRAME,
+        backtest_config=_backtest_config(),
+        feature_set_version=feature_set_version,
+        payout=0.85,
+        walk_forward_folds=_train_val_folds(start),
+        label="planted_momentum",
+    )
+    default_verdict = evaluate_condition_candidacy(**kwargs, allow_test=False)
+    explicit_verdict = evaluate_condition_candidacy(
+        **kwargs,
+        start=start,
+        end=start + dt.timedelta(minutes=N_CANDLES),
+        allow_test=False,
+    )
+
+    assert explicit_verdict.train_sample_size == default_verdict.train_sample_size
+    assert explicit_verdict.train_win_rate == default_verdict.train_win_rate
+    assert explicit_verdict.robustness == default_verdict.robustness
+    assert explicit_verdict.walk_forward == default_verdict.walk_forward
+
+
+def test_evaluate_candidacy_start_end_restricts_the_candle_universe(momentum_session):
+    session, start, feature_set_version = momentum_session
+
+    full_verdict = evaluate_condition_candidacy(
+        session, _momentum_condition(), "CALL", 60, ASSET, TIMEFRAME, _backtest_config(),
+        feature_set_version=feature_set_version, payout=0.85,
+        walk_forward_folds=_train_val_folds(start), label="planted_momentum_full",
+        allow_test=False,
+    )
+
+    # Only the first 500 (of 3000) candles -- far too few resolved spike
+    # signals to clear the sample-size gate, so this must be rejected
+    # there, with a much smaller train_sample_size than the full-history
+    # run -- proving the window was actually respected, not silently
+    # ignored in favor of the whole table.
+    restricted_verdict = evaluate_condition_candidacy(
+        session, _momentum_condition(), "CALL", 60, ASSET, TIMEFRAME, _backtest_config(),
+        feature_set_version=feature_set_version, payout=0.85,
+        walk_forward_folds=_train_val_folds(start), label="planted_momentum_restricted",
+        start=start, end=start + dt.timedelta(minutes=500),
+    )
+
+    assert restricted_verdict.train_sample_size < full_verdict.train_sample_size
+    assert restricted_verdict.rejected_at_gate == "sample_size_and_margin"
+
+
 # --- gate 1: sample size --------------------------------------------------
 
 

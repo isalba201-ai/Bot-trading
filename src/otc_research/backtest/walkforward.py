@@ -35,7 +35,7 @@ from typing import Sequence
 
 from sqlalchemy.orm import Session
 
-from otc_research.backtest.engine import BacktestRunResult, run_backtest
+from otc_research.backtest.engine import BacktestRunResult, compute_split_windows, run_backtest
 from otc_research.backtest.execution import ExecutionScenario
 from otc_research.backtest.strategy import Strategy
 from otc_research.config import BacktestConfig
@@ -95,6 +95,39 @@ def generate_folds(
         train_start = train_start + active_step
 
     return folds
+
+
+def compute_walk_forward_folds(
+    session: Session,
+    asset: str,
+    timeframe: str,
+    backtest_config: BacktestConfig,
+    *,
+    start: dt.datetime | None = None,
+    end: dt.datetime | None = None,
+    n_folds: int = 5,
+) -> list[WalkForwardFold]:
+    """The correct way to generate walk-forward folds for a candidacy
+    evaluation: bounded strictly to TRAIN+VALIDATION, using the same
+    row-based split boundary ``run_backtest``/``evaluate_candidacy``
+    themselves use (via ``backtest.engine.compute_split_windows``) —
+    never a calendar-time-proportion *estimate* of where TRAIN+VALIDATION
+    ends, which does not line up with the true row-based boundary
+    whenever candle density isn't perfectly uniform across the window
+    (this is exactly what let one walk-forward fold overflow ~2 hours
+    into the TEST split in the ML_1M5M experiment — see
+    ``ML1M5M_EXPERIMENT_REPORT.md`` and the follow-up investigation).
+
+    ``windows.test_start`` is used as the folds' exclusive upper bound:
+    ``generate_folds`` already drops any fold whose test window would
+    exceed it, so a fold can structurally never include a TEST candle,
+    not just "usually doesn't" by calendar-arithmetic luck.
+    """
+    windows = compute_split_windows(session, asset, timeframe, backtest_config, start=start, end=end)
+    history_start = windows.train[0]
+    history_end = windows.test_start
+    fold_span = (history_end - history_start) / n_folds
+    return generate_folds(history_start, history_end, train_span=fold_span, test_span=fold_span)
 
 
 @dataclass(frozen=True)

@@ -47,6 +47,78 @@ class BacktestRunResult:
     backtest_run_id: int
 
 
+@dataclass(frozen=True)
+class SplitWindows:
+    """The actual candle timestamps each split resolves to, for a given
+    ``[start, end)`` candle universe — the same row-based
+    ``compute_temporal_split`` arithmetic ``run_backtest`` uses
+    internally, exposed so a caller can see (and reuse, e.g. for
+    walk-forward fold generation) exactly where TRAIN ends and TEST
+    begins, rather than re-deriving it by hand from a calendar-time
+    proportion, which need not line up with the true row-based boundary
+    when candle density isn't perfectly uniform across the window.
+
+    ``test_start`` is the safe, exclusive upper bound for anything that
+    must never touch TEST (TRAIN, VALIDATION, or walk-forward folds
+    carved from TRAIN+VALIDATION): loading candles with ``end=test_start``
+    is guaranteed to load zero TEST candles.
+    """
+
+    train: tuple[dt.datetime, dt.datetime]
+    validation: tuple[dt.datetime, dt.datetime]
+    test: tuple[dt.datetime, dt.datetime]
+    n_candles: int
+
+    @property
+    def test_start(self) -> dt.datetime:
+        return self.test[0]
+
+
+def compute_split_windows(
+    session: Session,
+    asset: str,
+    timeframe: str,
+    backtest_config: BacktestConfig,
+    *,
+    start: dt.datetime | None = None,
+    end: dt.datetime | None = None,
+) -> SplitWindows:
+    """Loads candles in ``[start, end)`` (defaulting to the full ingested
+    history for ``asset``/``timeframe`` when both are ``None`` — the same
+    default every other unwindowed caller here already had), applies the
+    identical ``compute_temporal_split`` arithmetic ``run_backtest`` uses
+    for ``split="train"/"validation"/"test"``, and returns each split's
+    first/last actual candle timestamp.
+
+    This exists so TRAIN/VALIDATION/TEST boundaries are computed exactly
+    once, from real data, and every caller that needs to know them
+    (``evaluate_candidacy``'s gate 1/2/4, walk-forward fold generation)
+    reads the SAME boundary — never a separately-estimated one that could
+    silently drift into a different split (see
+    ``ML1M5M_EXPERIMENT_REPORT.md``'s split-mismatch finding, which this
+    function was added specifically to fix).
+    """
+    candles = _load_candles(session, asset, timeframe, start=start, end=end)
+    if len(candles) < 3:
+        raise ValueError(
+            f"not enough candles for {asset}/{timeframe} in the requested window "
+            f"(have {len(candles)}, need at least 3 to form train/validation/test)"
+        )
+    split = compute_temporal_split(
+        len(candles), backtest_config.train_fraction, backtest_config.validation_fraction
+    )
+    timestamps = [c.timestamp for c in candles]
+    train_ts = timestamps[split.train_slice]
+    validation_ts = timestamps[split.validation_slice]
+    test_ts = timestamps[split.test_slice]
+    return SplitWindows(
+        train=(train_ts[0], train_ts[-1]),
+        validation=(validation_ts[0], validation_ts[-1]),
+        test=(test_ts[0], test_ts[-1]),
+        n_candles=len(candles),
+    )
+
+
 def _load_candles(
     session: Session,
     asset: str,

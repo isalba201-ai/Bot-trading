@@ -63,6 +63,7 @@ so TEST is never reached unless everything else already passed.
 
 from __future__ import annotations
 
+import datetime as dt
 from dataclasses import dataclass
 from typing import Callable, Mapping, Sequence
 
@@ -121,7 +122,10 @@ class CandidacyThresholds:
 class CandidacyVerdict:
     accepted: bool
     #: None when accepted; otherwise which gate stopped it:
-    #: "sample_size_and_margin" / "robustness" / "walk_forward" / "test".
+    #: "sample_size_and_margin" / "robustness" / "walk_forward" / "test" /
+    #: "test_deferred" (gates 1-3 all passed but ``allow_test=False`` held
+    #: TEST back deliberately — not a rejection on the merits, just "not
+    #: attempted yet"; see ``evaluate_candidacy``'s ``allow_test`` param).
     rejected_at_gate: str | None
     reason: str
     train_sample_size: int | None = None
@@ -149,6 +153,9 @@ def evaluate_candidacy(
     thresholds: CandidacyThresholds = CandidacyThresholds(),
     scenario: ExecutionScenario | None = None,
     rng_seed: int = 0,
+    start: dt.datetime | None = None,
+    end: dt.datetime | None = None,
+    allow_test: bool = True,
 ) -> CandidacyVerdict:
     """Strategy-agnostic: ``base_strategy`` is evaluated as-is through
     gates 1, 3, 4; gate 2's parameter-sensitivity sweep calls
@@ -176,6 +183,29 @@ def evaluate_candidacy(
     assumption or, for a diagnostic-only comparison, to reintroduce
     slippage via ``backtest.execution.slippage_only_scenario``/
     ``realistic_scenario``.
+
+    ``start``/``end`` restrict EVERY candle-touching gate (1, 2, and 4 —
+    gate 3 is bounded by whatever ``walk_forward_folds`` the caller
+    passed, generated via ``backtest.walkforward.compute_walk_forward_folds``
+    for the matching guarantee) to that window, computed by
+    ``backtest.engine.compute_split_windows``. Leaving both ``None``
+    (the previous, only behavior) uses the strategy's full ingested
+    history for ``asset``/``timeframe`` — correct when that IS the
+    intended universe, but a caller that trained/discovered a strategy
+    against a deliberately chosen sub-window MUST pass the same
+    ``start``/``end`` here, or gates 1/2/4 will silently evaluate against
+    whatever else happens to already be in the database for that
+    asset/timeframe (including data spent by an earlier, unrelated run) —
+    exactly the bug this parameter was added to fix; see
+    ``ML1M5M_EXPERIMENT_REPORT.md``.
+
+    ``allow_test=False`` stops after gate 3: if gates 1-3 all pass, TEST
+    is deliberately never touched (not even a ``run_backtest(split="test")``
+    call is made) and the verdict comes back with ``accepted=False,
+    rejected_at_gate="test_deferred"`` — "would proceed to TEST, but TEST
+    was held back", never to be confused with an actual rejection on the
+    merits. Use this to get a clean read of gates 1-3 (e.g. a baseline
+    re-run) without spending the one-time TEST touch.
     """
     break_even = break_even_win_rate(payout)
     active_scenario = scenario if scenario is not None else delay_only_scenario(DEFAULT_ENTRY_DELAY_CANDLES)
@@ -193,6 +223,8 @@ def evaluate_candidacy(
         split="train",
         scenarios=scenarios,
         rng_seed=rng_seed,
+        start=start,
+        end=end,
     )[0]
     train_stats = train_result.stats
 
@@ -243,6 +275,7 @@ def evaluate_candidacy(
         backtest_config,
         feature_set_version=feature_set_version,
         split="train",
+        windows=[(start, end)],
         scenarios=scenarios,
         rng_seed=rng_seed,
     )
@@ -310,6 +343,22 @@ def evaluate_candidacy(
         )
 
     # --- gate 4: TEST, touched exactly once, only after 1-3 all pass ------
+    if not allow_test:
+        return CandidacyVerdict(
+            accepted=False,
+            rejected_at_gate="test_deferred",
+            reason=(
+                "gates 1-3 (sample size/margin, robustness, walk-forward) all "
+                "passed; TEST deliberately not touched (allow_test=False) -- "
+                "this is not a rejection on the merits"
+            ),
+            train_sample_size=train_stats.sample_size,
+            train_win_rate=train_stats.win_rate,
+            train_margin_over_break_even=margin,
+            robustness=robustness,
+            walk_forward=wf_summary,
+        )
+
     test_stats = run_backtest(
         session,
         base_strategy,
@@ -320,6 +369,8 @@ def evaluate_candidacy(
         split="test",
         scenarios=scenarios,
         rng_seed=rng_seed,
+        start=start,
+        end=end,
     )[0].stats
 
     test_passes = (
@@ -372,6 +423,9 @@ def evaluate_condition_candidacy(
     scenario: ExecutionScenario | None = None,
     rng_seed: int = 0,
     label: str | None = None,
+    start: dt.datetime | None = None,
+    end: dt.datetime | None = None,
+    allow_test: bool = True,
 ) -> CandidacyVerdict:
     """Behavior-preserving wrapper kept for every existing discovered-
     ``Condition`` call site (this was ``evaluate_candidacy``'s own exact
@@ -379,8 +433,11 @@ def evaluate_condition_candidacy(
     ``ConditionStrategy``-based ``base_strategy``/``strategy_factory``/
     ``perturbation_param_grid`` the old hardcoded implementation built
     internally, so every already-reported verdict (the 260-evaluation
-    corrected rerun included) is reproduced byte-for-byte; see
-    ``tests/test_research_candidacy.py``'s regression test.
+    corrected rerun included) is reproduced byte-for-byte when ``start``/
+    ``end``/``allow_test`` are left at their defaults; see
+    ``tests/test_research_candidacy.py``'s regression test. ``start``/
+    ``end``/``allow_test`` are passed straight through to
+    ``evaluate_candidacy`` — see its docstring.
     """
     base_strategy = ConditionStrategy(condition, direction, expiry_seconds, label=label)
 
@@ -410,4 +467,7 @@ def evaluate_condition_candidacy(
         thresholds=thresholds,
         scenario=scenario,
         rng_seed=rng_seed,
+        start=start,
+        end=end,
+        allow_test=allow_test,
     )

@@ -3,11 +3,12 @@ import datetime as dt
 import numpy as np
 import pytest
 
-from otc_research.backtest.engine import BacktestRunResult
+from otc_research.backtest.engine import BacktestRunResult, compute_split_windows
 from otc_research.backtest.metrics import TradeStats
 from otc_research.backtest.walkforward import (
     FoldResult,
     WalkForwardFold,
+    compute_walk_forward_folds,
     generate_folds,
     run_walk_forward,
     summarize_walk_forward,
@@ -194,6 +195,41 @@ def test_run_walk_forward_persists_one_row_per_fold_per_scenario(session):
     stored = session.query(BacktestRun).filter_by(split="walk_forward").all()
     assert len(stored) == len(folds) * 3
     assert {r.fold_index for r in stored} == {f.fold_index for f in folds}
+
+
+def test_compute_walk_forward_folds_never_reaches_test_start(session):
+    # Reproduces the shape of the real bug this function fixes: two
+    # disjoint blocks of candles for the same asset/timeframe (a "fresh"
+    # research window plus an older block sitting further out in the same
+    # table, exactly like EUR_USD/1m after the ML_1M5M experiment). A
+    # calendar-time-proportion ESTIMATE of the TRAIN+VALIDATION boundary
+    # (the old, buggy approach) drifts under non-uniform candle density;
+    # the row-based boundary this function uses must not.
+    start = dt.datetime(2026, 1, 1, tzinfo=dt.timezone.utc)
+    for i in range(300):
+        session.add(Candle(
+            asset="TEST_FX", timeframe="1m", timestamp=start + dt.timedelta(minutes=i),
+            open=1.1, high=1.1001, low=1.0999, close=1.1,
+            source="synthetic:test", is_synthetic_test_data=True,
+        ))
+    gap_start = start + dt.timedelta(days=60)
+    for i in range(100):
+        session.add(Candle(
+            asset="TEST_FX", timeframe="1m", timestamp=gap_start + dt.timedelta(minutes=i),
+            open=1.2, high=1.2001, low=1.1999, close=1.2,
+            source="synthetic:test", is_synthetic_test_data=True,
+        ))
+    session.commit()
+
+    cfg = _backtest_config()
+    window_end = start + dt.timedelta(minutes=300)  # excludes the far block entirely
+    windows = compute_split_windows(session, "TEST_FX", "1m", cfg, start=start, end=window_end)
+    folds = compute_walk_forward_folds(session, "TEST_FX", "1m", cfg, start=start, end=window_end, n_folds=5)
+
+    assert len(folds) > 0
+    for fold in folds:
+        assert fold.test_window[1] <= windows.test_start
+        assert fold.train_window[0] >= windows.train[0]
 
 
 def test_run_walk_forward_test_windows_do_not_overlap_by_default(session):
