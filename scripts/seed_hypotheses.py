@@ -51,6 +51,19 @@ INITIAL_HYPOTHESES = [
      "An established EMA-slope trend with a shallow (non-extreme) RSI pullback predicts continuation with the trend."),
     ("H20", "Donchian breakout confirmed by volatility expansion",
      "A Donchian channel breakout confirmed by ATR expansion predicts continuation."),
+    ("H21", "CCI+RSI overbought confirmed by bearish MACD histogram + red candle",
+     "CCI(20) and RSI(14) both overbought, confirmed by a bearish MACD histogram bar "
+     "and a bearish candle on the same candle, predicts a PUT reversal."),
+    ("H9_FWD", "H9 session-bias candidate, forward/paper test",
+     "EUR_USD 15m, hour_utc==6 UTC -> CALL, h=5 (75 min expiry). Frozen candidate from "
+     "the corrected binary-options backtest (BINARY_OPTIONS_BACKTEST_REPORT.md Section 3) "
+     "that mechanically cleared all four gates but was flagged fragile; forward-tested "
+     "against data it has never touched, never re-evaluated against its original TEST split."),
+    ("ML10_FWD", "Step 10 ML candidate, forward/paper test",
+     "USD_JPY 1h, random forest on call_wins h=3 (3h expiry) -> CALL. Frozen candidate "
+     "from Step 10's extended search (STEP10_EXTENDED_SEARCH_REPORT.md Section 3) that "
+     "mechanically cleared all four gates but was flagged fragile; the exact fitted model "
+     "is frozen (never refit) and forward-tested against data it has never touched."),
 ]
 
 
