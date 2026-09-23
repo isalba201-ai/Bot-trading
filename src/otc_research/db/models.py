@@ -353,6 +353,62 @@ class SignalDecision(Base):
     )
 
 
+class LiveEvaluation(Base):
+    """One row per (strategy_code, asset, timeframe, candle_timestamp)
+    evaluation performed by the manual-live signal generator (see
+    ``otc_research.live.evaluation`` / ``LIVE_MANUAL_TEST.md``).
+
+    Unlike ``Signal`` (only ever written when a strategy actually fires),
+    this table logs EVERY closed candle's decision -- CALL, NO_TRADE, or
+    DATA_ERROR -- so the full per-minute decision history is auditable
+    even for candles that never became a trade proposal (the user's
+    explicit requirement: "no solamente las señales que yo termine
+    ejecutando"). The unique constraint below is this system's duplicate
+    protection: a candle can be evaluated for a given strategy at most
+    once, ever, and a restarted process resumes from
+    ``MAX(candle_timestamp)`` rather than re-processing anything.
+    """
+
+    __tablename__ = "live_evaluations"
+
+    id = Column(Integer, primary_key=True)
+
+    strategy_code = Column(String(32), ForeignKey("hypotheses.code"), nullable=False)
+    asset = Column(String(32), nullable=False)
+    timeframe = Column(String(8), nullable=False)
+
+    # OPEN time of the candle that produced this evaluation (point-in-time
+    # safe: only ever evaluated once this candle itself has closed).
+    candle_timestamp = Column(DateTime(timezone=True), nullable=False)
+    # candle_timestamp + one timeframe interval -- the wall-clock moment
+    # this decision actually became knowable (the candle's close).
+    signal_time = Column(DateTime(timezone=True), nullable=False)
+
+    # Null only for DATA_ERROR (insufficient data to compute a probability).
+    probability_call = Column(Float, nullable=True)
+    signal = Column(String(16), nullable=False)  # CALL / NO_TRADE / DATA_ERROR
+
+    model_version = Column(String(64), nullable=False)  # frozen model SHA-256 (or prefix)
+    delay_candles = Column(Integer, nullable=False)
+
+    # Only set when signal == CALL.
+    entry_time = Column(DateTime(timezone=True), nullable=True)
+    expiry_time = Column(DateTime(timezone=True), nullable=True)
+    signal_id = Column(Integer, ForeignKey("signals.id"), nullable=True)
+
+    notes = Column(Text, nullable=True)  # e.g. gap/missing-feature detail for DATA_ERROR
+
+    created_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "strategy_code", "asset", "timeframe", "candle_timestamp",
+            name="uq_live_eval_point",
+        ),
+        Index("ix_live_eval_lookup", "strategy_code", "asset", "timeframe", "candle_timestamp"),
+    )
+
+
 class ConditionTrial(Base):
     """Every 2-3 way condition combination tried by
     ``research.discovery``'s systematic interaction search, logged BEFORE

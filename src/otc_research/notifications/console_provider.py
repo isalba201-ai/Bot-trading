@@ -7,6 +7,8 @@ hides a real bug elsewhere in the pipeline.
 
 from __future__ import annotations
 
+from typing import Callable
+
 from otc_research.db.models import Signal
 from otc_research.notifications.base import NotificationProvider
 from otc_research.signals.formatting import format_signal_message
@@ -16,7 +18,15 @@ logger = get_logger(__name__)
 
 
 class ConsoleNotificationProvider(NotificationProvider):
+    def __init__(self, message_formatter: Callable[[Signal], str] = format_signal_message):
+        #: Defaults to the shared generic formatter -- unchanged for every
+        #: existing caller (``ConsoleNotificationProvider()``). A caller
+        #: with its own message layout (e.g. the manual-live candidate #11
+        #: monitor) can pass a different formatter without this class
+        #: needing to know anything about that candidate.
+        self._format = message_formatter
+
     def notify(self, signal: Signal) -> None:
-        message = format_signal_message(signal)
+        message = self._format(signal)
         print(message)
         logger.info("signal %s delivered via console", signal.signal_ref or signal.id)

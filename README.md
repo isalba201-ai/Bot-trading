@@ -367,6 +367,23 @@ pytest
   concern that very short horizons are dominated by noise indistinguishable
   from execution delay. Does not touch H9_FWD, ML10_FWD, or the live
   forward-test poller.
+- [ML1M5M_CANDIDATE11_FORWARD_TEST_REPORT.md](ML1M5M_CANDIDATE11_FORWARD_TEST_REPORT.md) —
+  a blind, single-pass forward test of candidate #11 (gradient_boosting)
+  on genuinely new EUR/USD 1m data, three frozen strategies (Baseline,
+  P>0.65, CCI≥-60) × two frozen delay scenarios. Headline finding: all
+  three keep a positive margin under `delay0` but invert to well below
+  break-even and below 50% WR under `delay1` (the project's realistic
+  default), uniformly across every day and time block — reported as-is,
+  no winner declared, no parameter changed in response.
+- [LIVE_MANUAL_TEST.md](LIVE_MANUAL_TEST.md) — the manual-live phase that
+  follows: a signal generator + result logger (never an execution system)
+  running the exact frozen candidate #11 baseline (`P(CALL)>0.50`,
+  delay=1) against genuinely new, continuously-arriving EUR/USD 1m
+  candles, notifying a person to decide/execute manually and logging
+  every evaluation (fired or not) plus the separate theoretical-vs-manual
+  outcome. Includes a replay tool that proves the live evaluation code
+  reproduces the forward-test report's exact aggregate numbers before
+  ever being pointed at the real market.
 - [SIGNAL_ENGINE.md](SIGNAL_ENGINE.md) — the planned "BUSCAR SEÑAL" flow, signal
   format, and confidence-reporting rules
 - [RISK_MANAGEMENT.md](RISK_MANAGEMENT.md) — no execution, no martingale,

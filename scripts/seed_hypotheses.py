@@ -64,6 +64,12 @@ INITIAL_HYPOTHESES = [
      "from Step 10's extended search (STEP10_EXTENDED_SEARCH_REPORT.md Section 3) that "
      "mechanically cleared all four gates but was flagged fragile; the exact fitted model "
      "is frozen (never refit) and forward-tested against data it has never touched."),
+    ("ML1M5M_11_LIVE", "ML_1M5M candidate #11 baseline, manual-live signal generator",
+     "EUR_USD 1m, gradient_boosting P(CALL)>0.50, delay=1, 300s expiry -- the exact "
+     "model frozen for the blind forward test (ML1M5M_CANDIDATE11_FORWARD_TEST_REPORT.md), "
+     "reused unchanged here to generate manual-review CALL signals on genuinely new market "
+     "data (strictly after the forward-test block). No automatic order placement; a person "
+     "decides and executes manually -- see LIVE_MANUAL_TEST.md."),
 ]
 
 
