@@ -356,6 +356,17 @@ pytest
   `Signal` rows in `mode="paper"`, polled on a schedule; the original
   frozen TEST split is never re-touched. No conclusion is drawn until
   sample sizes are large enough to matter.
+- [ML1M5M_EXPERIMENT_REPORT.md](ML1M5M_EXPERIMENT_REPORT.md) — an
+  independent, experimental line (not a retimeframing of ML10_FWD): EUR/USD
+  1-minute candles → 5-minute binary-option expiry, on a genuinely new,
+  disjoint 14-day data window, evaluated under two pre-registered execution
+  scenarios side by side (zero extra delay vs. the project's standard
+  1-candle delay). 0/11 candidates accepted under either scenario, none
+  reached TEST — despite discovery flagging thousands of FDR-significant
+  conditions at the naive label level, confirming the project's standing
+  concern that very short horizons are dominated by noise indistinguishable
+  from execution delay. Does not touch H9_FWD, ML10_FWD, or the live
+  forward-test poller.
 - [SIGNAL_ENGINE.md](SIGNAL_ENGINE.md) — the planned "BUSCAR SEÑAL" flow, signal
   format, and confidence-reporting rules
 - [RISK_MANAGEMENT.md](RISK_MANAGEMENT.md) — no execution, no martingale,
