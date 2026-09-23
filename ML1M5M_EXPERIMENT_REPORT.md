@@ -7,6 +7,32 @@ NOT a retimeframing of `ML10_FWD` (USD/JPY 1h → 3h expiry). It does not
 touch `H9_FWD`, `ML10_FWD`, or `FORWARD_TEST_CANDIDATES`; nothing here
 was wired into the live forward-test poller.
 
+> **Correction (post-publication)**: a follow-up investigation into
+> candidate #11 (`gradient_boosting`) found that `evaluate_candidacy`'s
+> gates 1/2/4 silently ignored this experiment's intended window and ran
+> against the FULL EUR_USD/1m candle history instead — gate 1's real
+> TRAIN was 2026-07-21→07-31 (not 07-21→07-29 as stated below), and its
+> real TEST would have silently aliased to the already-used 09-15→09-18
+> block had any candidate reached gate 4 (none did). Walk-forward
+> (Section 4/6 below) was unaffected — it already used explicit
+> start/end per fold — except Fold 3 overflowed ~2h into the intended
+> TEST window due to a calendar-proportion estimate rather than the true
+> row-based boundary. Both bugs are now fixed
+> (`backtest.engine.compute_split_windows`,
+> `backtest.walkforward.compute_walk_forward_folds`,
+> `evaluate_candidacy`'s new `start`/`end`/`allow_test` params — see
+> `scripts/rerun_ml1m5m_candidate11_baseline.py`). The corrected baseline
+> for candidate #11 reaches the **same qualitative verdict** (rejected at
+> walk-forward, worst fold below break-even) with a smaller, correctly-
+> scoped TRAIN (n=5,612, not 6,980) — reported in full in the chat
+> transcript of that investigation. The 0-accepted headline for the other
+> 10 candidates in this report is unaffected in substance (none reached
+> gate 3 at all, so the gate-1/2 window bug could only have made their
+> TRAIN numbers ~2x too large, not changed a rejection into an
+> acceptance) but their exact TRAIN sample sizes/dates above are
+> likewise stated for the uncorrected window and should not be quoted
+> as precise.
+
 ## 1. What was run
 
 - **Data**: a genuinely new EUR/USD 1-minute block, fetched specifically
