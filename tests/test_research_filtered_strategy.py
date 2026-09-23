@@ -1,4 +1,8 @@
-from otc_research.research.filtered_strategy import FilteredStrategy, volatility_contraction_filter
+from otc_research.research.filtered_strategy import (
+    FilteredStrategy,
+    cci_extreme_oversold_filter,
+    volatility_contraction_filter,
+)
 from otc_research.strategies.h1_streak import H1StreakContinuation
 
 
@@ -47,3 +51,29 @@ def test_filtered_strategy_with_volatility_contraction_filter_end_to_end():
     normal = {"same_color_streak": 5.0, "atr_expansion_ratio": 1.5}
     assert wrapped.decide(contracted) is None
     assert wrapped.decide(normal) == "CALL"
+
+
+def test_cci_extreme_oversold_filter_blocks_strictly_below_threshold_only():
+    # ML_1M5M candidate #11 filter hypothesis B: exclude cci_20 < -60,
+    # keep cci_20 >= -60 (boundary itself is NOT blocked -- "-60" reads
+    # as "cci_20 >= -60 survives" in the user's own spec).
+    predicate = cci_extreme_oversold_filter(threshold=-60.0)
+    assert predicate({"cci_20": -80.0}) is True
+    assert predicate({"cci_20": -61.0}) is True
+    assert predicate({"cci_20": -60.0}) is False  # boundary: not blocked
+    assert predicate({"cci_20": -59.9}) is False
+    assert predicate({"cci_20": 0.0}) is False
+
+
+def test_filtered_strategy_with_cci_filter_end_to_end():
+    base = H1StreakContinuation(min_streak=3, expiry_seconds=300)
+    wrapped = FilteredStrategy(
+        base, cci_extreme_oversold_filter(-60.0), filter_label="cci20_lt_neg60",
+        filter_required_features=frozenset({"cci_20"}),
+    )
+    extreme = {"same_color_streak": 5.0, "cci_20": -75.0}
+    normal = {"same_color_streak": 5.0, "cci_20": -10.0}
+    assert base.decide(extreme) == base.decide(normal) == "CALL"
+    assert wrapped.decide(extreme) is None
+    assert wrapped.decide(normal) == "CALL"
+    assert "cci_20" in wrapped.required_features

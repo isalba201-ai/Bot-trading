@@ -39,6 +39,21 @@ def volatility_contraction_filter(
     return predicate
 
 
+def cci_extreme_oversold_filter(threshold: float = -60.0) -> Predicate:
+    """True (block trading) whenever ``cci_20 < threshold`` — a
+    pre-specified, fixed exclusion boundary (never optimized here; see
+    the ML_1M5M candidate #11 filter-hypothesis investigation this was
+    added for), kept only for the CALL side's exploratory hypothesis that
+    losses cluster in the most extreme oversold readings, not a claim
+    that ``-60`` is itself special.
+    """
+
+    def predicate(features: Mapping[str, float]) -> bool:
+        return features["cci_20"] < threshold
+
+    return predicate
+
+
 class FilteredStrategy:
     """``base.decide(features)`` unchanged, except suppressed (returns
     None) whenever ``block_predicate(features)`` is True. Requires every

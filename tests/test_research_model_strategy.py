@@ -36,6 +36,23 @@ def test_model_strategy_threshold_changes_sensitivity():
     assert strict.decide({"x": 0.05}) is None
 
 
+def test_model_strategy_different_thresholds_never_change_the_shared_models_probabilities():
+    # ML_1M5M candidate #11 filter hypothesis A (P(CALL)>0.65): wrapping
+    # the SAME fitted model in two ModelStrategy instances with different
+    # probability_threshold values must only change the decision cutoff,
+    # never the model's own predict_proba output -- the model is read-only
+    # here, never refit or mutated by either wrapper.
+    model = _fitted_model()
+    row = [[0.37]]
+    before = model.predict_proba(row)[0, 1]
+
+    ModelStrategy(model, ["x"], "CALL", expiry_seconds=300, probability_threshold=0.5)
+    ModelStrategy(model, ["x"], "CALL", expiry_seconds=300, probability_threshold=0.65)
+
+    after = model.predict_proba(row)[0, 1]
+    assert before == after
+
+
 def test_model_strategy_rejects_invalid_direction():
     model = _fitted_model()
     try:
