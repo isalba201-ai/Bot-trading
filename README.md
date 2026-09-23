@@ -336,7 +336,26 @@ pytest
   ~40,000 real candles — too rare to judge reliability at all, with a
   data-grounded explanation of exactly which condition causes the
   near-zero frequency and concrete (untested) next steps
-- [SIGNAL_ENGINE.md](SIGNAL_ENGINE.md) — the planned "BUSCAR SEÑAL" flow, signal
+- [STEP11_EXPANDED_FEATURES_REPORT.md](STEP11_EXPANDED_FEATURES_REPORT.md) —
+  one more bounded, disciplined discovery search over the ~21 v4 features
+  never fed into any prior search (candle-shape, multi-lag return, and
+  structure features; own independent FDR correction). 173 evaluations,
+  0 accepted; 13 reached TEST and all were rejected, though several
+  USD_JPY/1h candidates clustered closer to break-even than typical clean
+  rejections — reported with the same correlated-multiple-comparisons
+  caveat Step 10 applied to that same dataset
+- Forward/paper testing (`src/otc_research/research/forward_test.py`,
+  `scripts/run_forward_test_poll.py`) — the only statistically honest way
+  to find out whether either of the two mechanically-accepted-but-fragile
+  candidates (Step 9's H9, Step 10's ML random forest) is real: each is
+  frozen exactly as originally evaluated (same rule, or the same fitted
+  model reloaded from `data/forward_test_models/`, never refit) and
+  checked against real candles ingested after 2026-09-19 — after the
+  entire historical TRAIN/VALIDATION/TEST window each candidate was
+  discovered and evaluated on. Results accumulate as PENDING/WIN/LOSS
+  `Signal` rows in `mode="paper"`, polled on a schedule; the original
+  frozen TEST split is never re-touched. No conclusion is drawn until
+  sample sizes are large enough to matter.
 - [SIGNAL_ENGINE.md](SIGNAL_ENGINE.md) — the planned "BUSCAR SEÑAL" flow, signal
   format, and confidence-reporting rules
 - [RISK_MANAGEMENT.md](RISK_MANAGEMENT.md) — no execution, no martingale,
